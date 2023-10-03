@@ -1,0 +1,5 @@
+# ninja log v5
+0	2634	1630758321161776359	/home/office-409/Documents/WX/Deformable_DETR/models/ops/build/temp.linux-x86_64-3.6/home/office-409/Documents/WX/Deformable_DETR/models/ops/src/cpu/ms_deform_attn_cpu.o	b1b0b90fe27a33ed
+0	8437	1630758326961483994	/home/office-409/Documents/WX/Deformable_DETR/models/ops/build/temp.linux-x86_64-3.6/home/office-409/Documents/WX/Deformable_DETR/models/ops/src/cuda/ms_deform_attn_cuda.o	43d1f417282957c
+0	13472	1630758331993232627	/home/office-409/Documents/WX/Deformable_DETR/models/ops/build/temp.linux-x86_64-3.6/home/office-409/Documents/WX/Deformable_DETR/models/ops/src/vision.o	29613066425754d2
+1	7443	1630758406725735595	/home/office-409/Documents/WX/Deformable_DETR/models/ops/build/temp.linux-x86_64-3.6/home/office-409/Documents/WX/Deformable_DETR/models/ops/src/cuda/ms_deform_attn_cuda.o	43d1f417282957c

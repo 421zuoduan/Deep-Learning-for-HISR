@@ -1,0 +1,4 @@
+# ninja log v5
+0	2277	6389593780600789	D:/ProjectSets/NDA/Attention/Deformable-DETR/models/ops/build/temp.win-amd64-3.7/Release/ProjectSets/NDA/Attention/Deformable-DETR/models/ops/src/cpu/ms_deform_attn_cpu.obj	e1c0c7d46c3220d3
+7	7592	6389593833709327	D:/ProjectSets/NDA/Attention/Deformable-DETR/models/ops/build/temp.win-amd64-3.7/Release/ProjectSets/NDA/Attention/Deformable-DETR/models/ops/src/vision.obj	b3afa99d71e4f611
+5	11878	6389593876474992	D:/ProjectSets/NDA/Attention/Deformable-DETR/models/ops/build/temp.win-amd64-3.7/Release/ProjectSets/NDA/Attention/Deformable-DETR/models/ops/src/cuda/ms_deform_attn_cuda.obj	d840e44b3cd8e34f
