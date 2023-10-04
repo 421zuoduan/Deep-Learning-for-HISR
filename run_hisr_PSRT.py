@@ -4,10 +4,10 @@ from UDL.Basis.auxiliary import set_random_seed
 # from UDL.hisr.HISR.Bidi_final.model_SR import build
 # from UDL.hisr.HISR.PSRT_kernelattentionv1.option_hisr_PSRT import cfg as args
 # from UDL.hisr.HISR.PSRT_kernelattentionv1.model_PSRT import build
-# from UDL.hisr.HISR.PSRT_kernelattentionv2.option_hisr_PSRT import cfg as args
-# from UDL.hisr.HISR.PSRT_kernelattentionv2.model_PSRT import build
-from UDL.hisr.HISR.PSRT_kernelattentionv3.option_hisr_PSRT import cfg as args
-from UDL.hisr.HISR.PSRT_kernelattentionv3.model_PSRT import build
+from UDL.hisr.HISR.PSRT_kernelattentionv2.option_hisr_PSRT import cfg as args
+from UDL.hisr.HISR.PSRT_kernelattentionv2.model_PSRT import build
+# from UDL.hisr.HISR.PSRT_kernelattentionv3.option_hisr_PSRT import cfg as args
+# from UDL.hisr.HISR.PSRT_kernelattentionv3.model_PSRT import build
 # from UDL.hisr.HISR.PSRT_kernelattentionv4.option_hisr_PSRT import cfg as args
 # from UDL.hisr.HISR.PSRT_kernelattentionv4.model_PSRT import build
 
