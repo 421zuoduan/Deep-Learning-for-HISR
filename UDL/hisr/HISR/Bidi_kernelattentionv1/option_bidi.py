@@ -19,9 +19,9 @@ parser.add_argument('--out_dir', metavar='DIR', default=f'{root_dir}/results/{cf
 parser.add_argument('--test_epoch', default=2000, type=int, help='epoch to save model')
 
 # * Training
-parser.add_argument('--lr', default=1e-4, type=float)
+parser.add_argument('--lr', default=2e-4, type=float)
 parser.add_argument('--lr_scheduler', default=False, type=bool)
-parser.add_argument('-samples_per_gpu', default=32, type=int,
+parser.add_argument('-samples_per_gpu', default=64, type=int,
                     metavar='N', help='mini-batch size (default: 256)')
 parser.add_argument('--print-freq', '-p', default=20, type=int,
                     metavar='N', help='print frequency (default: 10)')
