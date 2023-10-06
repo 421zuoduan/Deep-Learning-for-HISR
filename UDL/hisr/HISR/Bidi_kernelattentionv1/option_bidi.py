@@ -12,7 +12,8 @@ print(root_dir)
 parser = argparse.ArgumentParser(description='PyTorch hisr Training')
 parser.add_argument('--name', default='Bidi_kernelattentionv1', type=str)
 
-model_path = f'{root_dir}/results/{cfg.task}/Bidi_merge1_xca_group1_light_48/cave_x4/AdaTrans/Test/model_2022-11-02-10-15/2000.pth.tar'
+# model_path = f'{root_dir}/results/{cfg.task}/Bidi_merge1_xca_group1_light_48/cave_x4/AdaTrans/Test/model_2022-11-02-10-15/2000.pth.tar'
+model_path = f'UDL\\results\\hisr\\Bidi_kernelattentionv1\\cave_x4\\AdaTrans\\Test\\model_2023-10-05-13-02\\2000.pth.tar'
 
 parser.add_argument('--out_dir', metavar='DIR', default=f'{root_dir}/results/{cfg.task}',
                     help='path to save model')
@@ -36,7 +37,7 @@ parser.add_argument('--arch', '-a', metavar='ARCH', default='AdaTrans', type=str
 parser.add_argument('--dataset', default='cave_x4', type=str,
                     choices=['cave_x4', 'harvard_x4'],
                     help="Datasets")
-parser.add_argument('--eval', default=False, type=bool,
+parser.add_argument('--eval', default=True, type=bool,
                     help="performing evalution for patch2entire")
 parser.add_argument('--crop_batch_size', type=int, default=128,
                     help='input batch size for training')
