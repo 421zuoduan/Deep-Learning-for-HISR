@@ -227,7 +227,6 @@ class KernelAttention(nn.Module):
         self.dim = dim
         self.input_resolution = input_resolution
         self.num_heads = num_heads
-        self.img_size = 64
         self.window_size = ka_window_size
         self.stride = stride
         self.padding = padding
@@ -416,7 +415,7 @@ class Upsample_unc(nn.Module):
         return self.body(x)
 
 class Stage(nn.Module):
-    def __init__(self, dim=32, input_resolution=(16, 16), num_heads=8, window_size=4,
+    def __init__(self, dim=32, input_resolution=(16, 16), num_heads=8, window_size=4, ka_window_size=16, 
                  mlp_ratio=4., qkv_bias=True, qk_scale=4, drop=0., attn_drop=0., drop_path=0.,
                  act_layer=nn.GELU, norm_layer=nn.LayerNorm):
         super().__init__()
@@ -425,6 +424,8 @@ class Stage(nn.Module):
         self.num_heads = num_heads
         self.window_size = window_size
         self.mlp_ratio = mlp_ratio
+        # self.ka_window_size = (input_resolution[0] // 64) * 16
+        self.ka_window_size = ka_window_size
 
         assert 0 <= self.window_size <= input_resolution[0], "input_resolution should be larger than window_size"
         assert 0 <= self.window_size <= input_resolution[1], "input_resolution should be larger than window_size"
@@ -433,7 +434,7 @@ class Stage(nn.Module):
             dim//2, num_heads=num_heads//2,
             qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
         
-        self.kernel_attn1 = KernelAttention(dim//2, input_resolution, num_heads=num_heads//2, ka_window_size=16, kernel_size=3, kernel_dim_scale=1, stride=1, padding=1)
+        self.kernel_attn1 = KernelAttention(dim//2, input_resolution, num_heads=num_heads//2, ka_window_size=self.ka_window_size, kernel_size=3, kernel_dim_scale=1, stride=1, padding=1)
 
         self.win_attn2 = WindowAttention(
             dim, num_heads=num_heads,
@@ -443,7 +444,7 @@ class Stage(nn.Module):
             dim//2, num_heads=num_heads//2,
             qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
         
-        self.kernel_attn3 = KernelAttention(dim//2, input_resolution, num_heads=num_heads//2, ka_window_size=16, kernel_size=3, kernel_dim_scale=1, stride=1, padding=1)
+        self.kernel_attn3 = KernelAttention(dim//2, input_resolution, num_heads=num_heads//2, ka_window_size=self.ka_window_size, kernel_size=3, kernel_dim_scale=1, stride=1, padding=1)
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.norm1 = norm_layer(dim)
@@ -674,6 +675,7 @@ class Direction1(nn.Module):
         self.patch_norm = patch_norm
         self.mlp_ratio = mlp_ratio
         self.img_size = img_size
+        ka_window_size = (img_size // 64) * 16
         self.conv = nn.Conv2d(in_channels=in_chans, out_channels=embed_dim, kernel_size=3, stride=1, padding=1)
 
         # split image into non-overlapping patches
@@ -687,9 +689,9 @@ class Direction1(nn.Module):
         self.upsample = nn.Sequential(
             nn.Conv2d(self.embed_dim*2, self.embed_dim * 8, 3, 1, 1), nn.PixelShuffle(2), nn.LeakyReLU(0.2, True))
         self.conv1 = nn.Conv2d(self.embed_dim*3, self.embed_dim*2, 1, 1, 0)
-        self.stage1 = Stage(dim=self.embed_dim, input_resolution=(self.img_size, self.img_size), num_heads=num_heads[0], window_size=window_size)
-        self.stage2 = Stage(dim=self.embed_dim * 2, input_resolution=(self.img_size//2, self.img_size//2), num_heads=num_heads[1], window_size=window_size)
-        self.stage3 = Stage(dim=self.embed_dim * 4, input_resolution=(self.img_size//4, self.img_size//4), num_heads=num_heads[2], window_size=window_size)
+        self.stage1 = Stage(dim=self.embed_dim, input_resolution=(self.img_size, self.img_size), num_heads=num_heads[0], window_size=window_size, ka_window_size=ka_window_size)
+        self.stage2 = Stage(dim=self.embed_dim * 2, input_resolution=(self.img_size//2, self.img_size//2), num_heads=num_heads[1], window_size=window_size, ka_window_size=ka_window_size)
+        self.stage3 = Stage(dim=self.embed_dim * 4, input_resolution=(self.img_size//4, self.img_size//4), num_heads=num_heads[2], window_size=window_size, ka_window_size=ka_window_size)
 
 
     def forward(self, x):
