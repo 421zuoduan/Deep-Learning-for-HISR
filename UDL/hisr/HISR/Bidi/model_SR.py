@@ -40,7 +40,7 @@ class Bidinet(PatchMergeModule):
     def __init__(self, args):
         super(Bidinet, self).__init__()
         self.args = args
-        # self.img_size = 1024
+        # self.img_size = 512
         self.img_size = 64
         self.in_channels = 31
         self.embed_dim = 48  # w-msa

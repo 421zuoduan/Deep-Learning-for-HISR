@@ -7,7 +7,7 @@ from UDL.Basis.criterion_metrics import *
 from UDL.pansharpening.common.evaluate import analysis_accu
 from UDL.Basis.module import PatchMergeModule
 from UDL.Basis.pytorch_msssim.cal_ssim import SSIM
-from UDL.hisr.HISR.Bidi_kernelattentionv2.bidirection import *
+from UDL.hisr.HISR.Bidi_kernelattentionv3.bidirection import *
 import torch.nn.functional as F
 
 def init_weights(*modules):
@@ -40,8 +40,8 @@ class Bidinet(PatchMergeModule):
     def __init__(self, args):
         super(Bidinet, self).__init__()
         self.args = args
-        self.img_size = 512
-        # self.img_size = 64
+        # self.img_size = 512
+        self.img_size = 64
         self.in_channels = 31
         self.embed_dim = 48  # w-msa
         self.dim = 32  # w-xca
