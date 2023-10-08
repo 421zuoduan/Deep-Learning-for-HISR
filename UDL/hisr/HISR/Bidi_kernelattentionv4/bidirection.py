@@ -150,8 +150,6 @@ class PatchMerging(nn.Module):
     
 
 
-
-
 def ka_window_partition(x, window_size):
     """
     input: (B, C, H, W)
@@ -344,9 +342,7 @@ class KernelAttention(nn.Module):
 
 
 
-
-
-class WinAttention(nn.Module):
+class WindowAttention(nn.Module):
     r""" Window based multi-head self attention (W-MSA) module with relative position bias.
     It supports both of shifted and non-shifted window.
 
@@ -416,7 +412,7 @@ class Upsample_unc(nn.Module):
         return self.body(x)
 
 class Stage(nn.Module):
-    def __init__(self, dim=32, input_resolution=(16, 16), num_heads=8, window_size=4,
+    def __init__(self, stage, dim=32, input_resolution=(16, 16), num_heads=8, window_size=4, ka_window_size=16, 
                  mlp_ratio=4., qkv_bias=True, qk_scale=4, drop=0., attn_drop=0., drop_path=0.,
                  act_layer=nn.GELU, norm_layer=nn.LayerNorm):
         super().__init__()
@@ -425,21 +421,30 @@ class Stage(nn.Module):
         self.num_heads = num_heads
         self.window_size = window_size
         self.mlp_ratio = mlp_ratio
+        # self.ka_window_size = (input_resolution[0] // 64) * 16
+        if stage == 1:
+            self.ka_win_num = 16
+        elif stage == 2 or 3:
+            self.ka_win_num = 4
 
         assert 0 <= self.window_size <= input_resolution[0], "input_resolution should be larger than window_size"
         assert 0 <= self.window_size <= input_resolution[1], "input_resolution should be larger than window_size"
 
-        self.win_attn1 = WinAttention(
+        self.win_attn1 = WindowAttention(
+            dim//2, num_heads=num_heads//2,
+            qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
+        
+        self.kernel_attn1 = KernelAttention(dim//2, input_resolution, num_heads=num_heads//2, ka_win_num=self.ka_win_num, kernel_size=3, stride=1, padding=1)
+
+        self.win_attn2 = WindowAttention(
             dim, num_heads=num_heads,
             qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
 
-        self.win_attn2 = WinAttention(
-            dim, num_heads=num_heads,
+        self.win_attn3 = WindowAttention(
+            dim//2, num_heads=num_heads//2,
             qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
-
-        self.win_attn3 = WinAttention(
-            dim, num_heads=num_heads,
-            qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
+        
+        self.kernel_attn3 = KernelAttention(dim//2, input_resolution, num_heads=num_heads//2, ka_win_num=self.ka_win_num, kernel_size=3, stride=1, padding=1)
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.norm1 = norm_layer(dim)
@@ -455,8 +460,6 @@ class Stage(nn.Module):
         self.norm6 = norm_layer(dim)
         self.mlp3 = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
 
-        self.kernel_attn = KernelAttention(dim, input_resolution, num_heads, ka_win_num=4, kernel_size=3, stride=1, padding=1, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.)
-
     def forward(self, x):
         H, W = self.input_resolution
         B, L, C = x.shape
@@ -464,23 +467,25 @@ class Stage(nn.Module):
 
         shortcut = x
         x = self.norm1(x)
-        x = x.view(B, H, W, C)
-        x_windows = window_partition(x, self.window_size)  # nW*B, window_size, window_size, C
-        x_windows = x_windows.view(-1, self.window_size * self.window_size, C)  # nW*B, window_size*window_size, C
-
-        attn_windows = self.win_attn1(x_windows)  # nW*B, window_size*window_size, C
-        x = window_reverse(attn_windows, self.window_size, H, W)  # B H' W' C
-        x = x.view(B, H * W, C)
+        x_wa, x_ka = x.chunk(2, dim=-1)
+        x_ka = x_ka.view(B, H, W, C//2).permute(0, 3, 1, 2)  #B, C//2, H, W
+        x_ka = self.kernel_attn1(x_ka).permute(0, 2, 3, 1).contiguous().view(B, L, C//2)  #B, H*W, C//2
+        x_wa = x_wa.view(B, H, W, C//2)
+        x_windows_wa = window_partition(x_wa, self.window_size)  # nW*B, window_size, window_size, C//2
+        x_windows_wa = x_windows_wa.view(-1, self.window_size * self.window_size, C//2)  # nW*B, window_size*window_size, C//2
+        attn_windows_wa = self.win_attn1(x_windows_wa)  # nW*B, window_size*window_size, C//2
+        x_wa = window_reverse(attn_windows_wa, self.window_size, H, W)  # B, H, W, C//2
+        x_wa = x_wa.view(B, H * W, C//2)
+        x = torch.cat([x_wa, x_ka], dim=-1)  # B, H*W, C
         x = shortcut + self.drop_path(x)
         x = x + self.drop_path(self.mlp1(self.norm2(x)))
-
+        
         shortcut = x
-        x = self.norm1(x)
+        x = self.norm3(x)
         x = x.view(B, H, W, C)
         shifted_x = Win_Dila(x, self.window_size)
         x_windows = window_partition(shifted_x, self.window_size)  # nW*B, window_size, window_size, C
         x_windows = x_windows.view(-1, self.window_size * self.window_size, C)  # nW*B, window_size*window_size, C
-
         attn_windows = self.win_attn2(x_windows)  # nW*B, window_size*window_size, C
         shifted_x = window_reverse(attn_windows, self.window_size, H, W)  # B H' W' C
         x = Win_ReDila(shifted_x, self.window_size)
@@ -490,22 +495,22 @@ class Stage(nn.Module):
 
         shortcut = x
         x = self.norm5(x)
-        x = x.view(B, H, W, C)
-        x_windows = window_partition(x, self.window_size)  # nW*B, window_size, window_size, C
-        x_windows = x_windows.view(-1, self.window_size * self.window_size, C)  # nW*B, window_size*window_size, C
-
-        attn_windows = self.win_attn3(x_windows)  # nW*B, window_size*window_size, C
-        x = window_reverse(attn_windows, self.window_size, H, W)  # B H' W' C
-        x = x.view(B, H * W, C)
+        x_wa, x_ka = x.chunk(2, dim=-1)
+        x_ka = x_ka.view(B, H, W, C//2).permute(0, 3, 1, 2)  #B, C//2, H, W
+        x_ka = self.kernel_attn3(x_ka).permute(0, 2, 3, 1).contiguous().view(B, L, C//2)  #B, H*W, C//2
+        x_wa = x_wa.view(B, H, W, C//2)
+        x_windows_wa = window_partition(x_wa, self.window_size)  # nW*B, window_size, window_size, C//2
+        x_windows_wa = x_windows_wa.view(-1, self.window_size * self.window_size, C//2)  # nW*B, window_size*window_size, C//2
+        attn_windows_wa = self.win_attn3(x_windows_wa)  # nW*B, window_size*window_size, C//2
+        x_wa = window_reverse(attn_windows_wa, self.window_size, H, W)  # B H' W' C//2
+        x_wa = x_wa.view(B, H * W, C//2)
+        x = torch.cat([x_wa, x_ka], dim=-1)  # B, H*W, C
         x = shortcut + self.drop_path(x)
         x = x + self.drop_path(self.mlp3(self.norm6(x)))
 
-        shortcut = x
-        x = x.view(B, H, W, C).permute(0, 3, 1, 2)
-        x = self.kernel_attn(x).permute(0, 2, 3, 1).contiguous().view(B, H * W, C)
-        x = shortcut + x
-
         return x
+    
+
 
 class OverlapPatchEmbed(nn.Module):
     def __init__(self, in_c=3, embed_dim=48, bias=False):
@@ -667,6 +672,7 @@ class Direction1(nn.Module):
         self.patch_norm = patch_norm
         self.mlp_ratio = mlp_ratio
         self.img_size = img_size
+        ka_window_size = (img_size // 64) * 16
         self.conv = nn.Conv2d(in_channels=in_chans, out_channels=embed_dim, kernel_size=3, stride=1, padding=1)
 
         # split image into non-overlapping patches
@@ -680,9 +686,9 @@ class Direction1(nn.Module):
         self.upsample = nn.Sequential(
             nn.Conv2d(self.embed_dim*2, self.embed_dim * 8, 3, 1, 1), nn.PixelShuffle(2), nn.LeakyReLU(0.2, True))
         self.conv1 = nn.Conv2d(self.embed_dim*3, self.embed_dim*2, 1, 1, 0)
-        self.stage1 = Stage(dim=self.embed_dim, input_resolution=(self.img_size, self.img_size), num_heads=num_heads[0], window_size=window_size)
-        self.stage2 = Stage(dim=self.embed_dim * 2, input_resolution=(self.img_size//2, self.img_size//2), num_heads=num_heads[1], window_size=window_size)
-        self.stage3 = Stage(dim=self.embed_dim * 4, input_resolution=(self.img_size//4, self.img_size//4), num_heads=num_heads[2], window_size=window_size)
+        self.stage1 = Stage(stage=1, dim=self.embed_dim, input_resolution=(self.img_size, self.img_size), num_heads=num_heads[0], window_size=window_size, ka_window_size=ka_window_size)
+        self.stage2 = Stage(stage=2, dim=self.embed_dim * 2, input_resolution=(self.img_size//2, self.img_size//2), num_heads=num_heads[1], window_size=window_size, ka_window_size=ka_window_size)
+        self.stage3 = Stage(stage=3, dim=self.embed_dim * 4, input_resolution=(self.img_size//4, self.img_size//4), num_heads=num_heads[2], window_size=window_size, ka_window_size=ka_window_size)
 
 
     def forward(self, x):
