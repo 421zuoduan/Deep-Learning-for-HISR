@@ -7,7 +7,7 @@ from UDL.Basis.criterion_metrics import *
 from UDL.pansharpening.common.evaluate import analysis_accu
 from UDL.Basis.module import PatchMergeModule
 from UDL.Basis.pytorch_msssim.cal_ssim import SSIM
-from UDL.hisr.HISR.Bidi.bidirection import *
+from UDL.hisr.HISR.Bidi_kernelattentionv4.bidirection import *
 import torch.nn.functional as F
 
 def init_weights(*modules):
