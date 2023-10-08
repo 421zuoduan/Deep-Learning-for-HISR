@@ -152,12 +152,13 @@ class PatchMerging(nn.Module):
 
 def ka_window_partition(x, window_size):
     """
-    input: (B, C, H, W)
+    input: (B, H*W, C)
     output: (num_windows, B, C, window_size, window_size)
     """
-    B, C, H, W = x.shape
-    x = x.reshape(B, C, H // window_size, window_size, W // window_size, window_size)
-    windows = x.permute(2, 4, 0, 1, 3, 5).contiguous().view(-1, B, C, window_size, window_size)
+    B, L, C = x.shape
+    H, W = int(sqrt(L)), int(sqrt(L))
+    x = x.reshape(B, H // window_size, window_size, W // window_size, window_size, C)
+    windows = x.permute(1, 3, 5, 0, 2, 4).contiguous().view(-1, B, C, window_size, window_size)
     return windows
 
 
@@ -259,14 +260,14 @@ class KernelAttention(nn.Module):
 
     def forward(self, x):
         """
-        x: B, C, H, W
+        x: B, L, C
         """
-        B, C, H, W = x.shape
-        shortcut = x
+        B, L, C = x.shape
+        H, W = self.input_resolution
+        # shortcut = x
 
         # x_windows:  win_num, bs, c, wh, ww
         x_windows = ka_window_partition(x, self.window_size)
-        x_windows_origin = x_windows
 
 
         ### 下面对每个窗口进行卷积并获取卷积核
@@ -315,7 +316,7 @@ class KernelAttention(nn.Module):
             # kernel:  out_c, in_c, k_size, k_size
             kernel = selayer(kernels[i])
             # x_window:  bs, c, wh, ww
-            x_window = F.conv2d(x_windows_origin[i], weight=kernel, bias=None, stride=self.stride, padding=self.padding).unsqueeze(0)
+            x_window = F.conv2d(x_windows[i], weight=kernel, bias=None, stride=self.stride, padding=self.padding).unsqueeze(0)
 
             # TODO check: 此处由1, bs*c, h, w变为1, bs, c, h, w的操作是否正确
             # x_window:  1, bs, c, wh, ww
@@ -329,9 +330,9 @@ class KernelAttention(nn.Module):
         # x:  bs, c, h, w
         x = ka_window_reverse(x_windows, self.window_size, H, W)
 
-        x = self.layernorm(x.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
+        # x = self.layernorm(x.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
 
-        x = shortcut + x
+        # x = shortcut + x
 
         return x
     
@@ -467,9 +468,8 @@ class Stage(nn.Module):
 
         shortcut = x
         x = self.norm1(x)
-        x_wa, x_ka = x.chunk(2, dim=-1)
-        x_ka = x_ka.view(B, H, W, C//2).permute(0, 3, 1, 2)  #B, C//2, H, W
-        x_ka = self.kernel_attn1(x_ka).permute(0, 2, 3, 1).contiguous().view(B, L, C//2)  #B, H*W, C//2
+        x_wa, x_ka = x.chunk(2, dim=-1)  # B, L, C//2
+        x_ka = self.kernel_attn1(x_ka).permute(0, 2, 3, 1).contiguous().view(B, L, C//2)  # B, H*W, C//2
         x_wa = x_wa.view(B, H, W, C//2)
         x_windows_wa = window_partition(x_wa, self.window_size)  # nW*B, window_size, window_size, C//2
         x_windows_wa = x_windows_wa.view(-1, self.window_size * self.window_size, C//2)  # nW*B, window_size*window_size, C//2
@@ -495,8 +495,7 @@ class Stage(nn.Module):
 
         shortcut = x
         x = self.norm5(x)
-        x_wa, x_ka = x.chunk(2, dim=-1)
-        x_ka = x_ka.view(B, H, W, C//2).permute(0, 3, 1, 2)  #B, C//2, H, W
+        x_wa, x_ka = x.chunk(2, dim=-1)  # B, L, C//2
         x_ka = self.kernel_attn3(x_ka).permute(0, 2, 3, 1).contiguous().view(B, L, C//2)  #B, H*W, C//2
         x_wa = x_wa.view(B, H, W, C//2)
         x_windows_wa = window_partition(x_wa, self.window_size)  # nW*B, window_size, window_size, C//2
