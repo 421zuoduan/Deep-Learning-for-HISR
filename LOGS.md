@@ -15,11 +15,13 @@
 
 * BDT_KAv2：KernelAttention训练时保持窗口数量不变，无法利用金字塔结构的感受野变化的信息
 
-* BDT_KAv3：KernelAttetion放在Stage的最后
+* BDT_KAv3：KernelAttention放在Stage的最后
 
-* BDT_KAv4：KernelAttetion去掉了结尾的shortcut和norm，其他与v2保持一致
+* BDT_KAv4：KernelAttention去掉了结尾的shortcut和norm，其他与v2保持一致
 
-* BDT_KAv5：KernelAttetion，其他与v3保持一致
+* BDT_KAv5：KernelAttention去掉了shortcut（原先有两个shortcut），其他与v3保持一致
+
+* BDT_KAv6：v4中有partition处代码写错了，remake
 
 
 

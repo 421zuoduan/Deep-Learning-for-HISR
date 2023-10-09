@@ -10,8 +10,10 @@ from UDL.Basis.auxiliary import set_random_seed
 # from UDL.hisr.HISR.Bidi_kernelattentionv3.model_SR import build
 # from UDL.hisr.HISR.Bidi_kernelattentionv4.option_bidi import cfg as args
 # from UDL.hisr.HISR.Bidi_kernelattentionv4.model_SR import build
-from UDL.hisr.HISR.Bidi_kernelattentionv5.option_bidi import cfg as args
-from UDL.hisr.HISR.Bidi_kernelattentionv5.model_SR import build
+# from UDL.hisr.HISR.Bidi_kernelattentionv5.option_bidi import cfg as args
+# from UDL.hisr.HISR.Bidi_kernelattentionv5.model_SR import build
+from UDL.hisr.HISR.Bidi_kernelattentionv6.option_bidi import cfg as args
+from UDL.hisr.HISR.Bidi_kernelattentionv6.model_SR import build
 
 
 import os
