@@ -9,8 +9,9 @@ mat_data = scipy.io.loadmat('my_model_results/Bidi_kernelattentionv2/AdaTrans/ca
 images = mat_data['output']
 
 # 取出要作为RGB通道的通道索引（第31/20/10个通道）
-channel_indices = [30, 19, 9]
-# channel_indices = [1, 12, 22]
+# channel_indices = [30, 19, 9]
+# channel_indices = [9, 19, 30]
+channel_indices = [1, 12, 22]
 
 # 创建一个2x6的子图布局，以容纳所有图片
 num_images = images.shape[0]
