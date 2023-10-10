@@ -38,16 +38,9 @@ module放在stage最后:
 * BDT_KAv5：基于v3，KernelAttention去掉了shortcut（原先有两个shortcut），没有保留layernorm
 
 
-
-
-
-
-
-
 ## 训练说明（笔记本4060）
 
 * 20231009：跑BDT_KAv4，凌晨。运行768epoch，后续放在6号机上运行
-
 
 
 ## 测试结果
@@ -59,3 +52,6 @@ module放在stage最后:
 |BDT_KAv4|2.1197825|1.1010958|51.3766497|6号机|20231009|
 |BDT_KAv5|2.0677423|1.0793397|51.5658632|2号机|20231009|
 |BDT_KAv6|-|-|-|-|-|
+|BDT_KAv7||||||
+|BDT_KAv8||||||
+|BDT_KAv9||||||
