@@ -36,6 +36,7 @@ module放在stage最后:
 
 * BDT_KAv3：KernelAttention放在Stage的最后
 * BDT_KAv5：基于v3，KernelAttention去掉了shortcut（原先有两个shortcut），没有保留layernorm
+* BDT_KAv9：基于v5，KernelAttention前要加一个norm
 
 
 ## 训练说明（笔记本4060）
