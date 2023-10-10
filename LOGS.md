@@ -21,17 +21,19 @@
 
 * BDT_KAv1：KernelAttention训练时保持窗口大小不变，但是测试时存在问题；更改代码使得测试时的窗口大小会发生改变
 
+双分支结构：
+
 * BDT_KAv2：KernelAttention训练时保持窗口数量不变，无法利用金字塔结构的感受野变化的信息
+* [code wrong] BDT_KAv4：基于v2，KernelAttention去掉了结尾的shortcut和norm。partition维度出错
+* [code wrong] BDT_KAv6：基于v4，v4中有partition处代码写错了，reverse没改，remake吧:(。重写还是有错
+* BDT_KAv7：基于v4，v4中有reverse改了，partition没改，哥们你真不细心啊。改了重新跑
 
-* BDT_KAv3：KernelAttention放在Stage的最后，
+module放在stage最后:
 
-* [code wrong] BDT_KAv4：KernelAttention去掉了结尾的shortcut和norm，其他与v2保持一致。partition维度出错
+* BDT_KAv3：KernelAttention放在Stage的最后
+* BDT_KAv5：基于v3，KernelAttention去掉了shortcut（原先有两个shortcut），没有保留layernorm
 
-* BDT_KAv5：KernelAttention去掉了shortcut（原先有两个shortcut），没有保留layernorm，其他与v3保持一致
 
-* [code wrong] BDT_KAv6：v4中有partition处代码写错了，reverse没改，remake吧:(。重写还是有错
-
-* BDT_KAv7：v4中有reverse改了，partition没改，哥们你真不细心啊。改了重新跑
 
 
 

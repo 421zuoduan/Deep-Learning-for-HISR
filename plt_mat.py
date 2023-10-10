@@ -3,15 +3,15 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 # 读取MAT文件
-mat_data = scipy.io.loadmat('my_model_results/Bidi_kernelattentionv2/AdaTrans/cave_x4/Bidi_kernelattentionv2_cave2000.mat')
+mat_data = scipy.io.loadmat('my_model_results\Bidi_merge1_xca_group1_light_48\AdaTrans\cave_x4\Bidi_merge1_xca_group1_light_48_cave2000.mat')
 
 # 假设MAT文件中的图像存储在变量 'images' 中
 images = mat_data['output']
 
 # 取出要作为RGB通道的通道索引（第31/20/10个通道）
-# channel_indices = [30, 19, 9]
+channel_indices = [30, 19, 9]
 # channel_indices = [9, 19, 30]
-channel_indices = [1, 12, 22]
+# channel_indices = [1, 12, 22]
 
 # 创建一个2x6的子图布局，以容纳所有图片
 num_images = images.shape[0]
