@@ -6,15 +6,18 @@
 
 * BDT_KAv1 参数3.040M
 
+双分支：
+
 * BDT_KAv2 参数3.545 M
+* BDT_KAv4 参数3.545 M
+* BDT_KAv6 参数3.545 M
+* BDT_KAv8 参数6.176 M
+
+module放在stage最后：
 
 * BDT_KAv3 参数4.637 M
-
-* BDT_KAv4 参数3.545 M
-
 * BDT_KAv5 参数4.637 M
-
-* BDT_KAv6 参数3.545 M
+* BDT_KAv9 参数4.637 M
 
 
 ## 实验代码说明
@@ -27,6 +30,7 @@
 * [code wrong] BDT_KAv4：基于v2，KernelAttention去掉了结尾的shortcut和norm。partition维度出错
 * [code wrong] BDT_KAv6：基于v4，v4中有partition处代码写错了，reverse没改，remake吧:(。重写还是有错
 * BDT_KAv7：基于v4，v4中有reverse改了，partition没改，哥们你真不细心啊。改了重新跑
+* BDT_KAv8：基于v7，改变KernelAttention里的窗口数均为16
 
 module放在stage最后:
 

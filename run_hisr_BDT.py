@@ -6,8 +6,8 @@ from UDL.Basis.auxiliary import set_random_seed
 # from UDL.hisr.HISR.Bidi_kernelattentionv1.model_SR import build
 # from UDL.hisr.HISR.Bidi_kernelattentionv2.option_bidi import cfg as args
 # from UDL.hisr.HISR.Bidi_kernelattentionv2.model_SR import build
-from UDL.hisr.HISR.Bidi_kernelattentionv3.option_bidi import cfg as args
-from UDL.hisr.HISR.Bidi_kernelattentionv3.model_SR import build
+# from UDL.hisr.HISR.Bidi_kernelattentionv3.option_bidi import cfg as args
+# from UDL.hisr.HISR.Bidi_kernelattentionv3.model_SR import build
 # from UDL.hisr.HISR.Bidi_kernelattentionv4.option_bidi import cfg as args
 # from UDL.hisr.HISR.Bidi_kernelattentionv4.model_SR import build
 # from UDL.hisr.HISR.Bidi_kernelattentionv5.option_bidi import cfg as args
@@ -16,6 +16,12 @@ from UDL.hisr.HISR.Bidi_kernelattentionv3.model_SR import build
 # from UDL.hisr.HISR.Bidi_kernelattentionv6.model_SR import build
 # from UDL.hisr.HISR.Bidi_kernelattentionv6.option_bidi import cfg as args
 # from UDL.hisr.HISR.Bidi_kernelattentionv6.model_SR import build
+# from UDL.hisr.HISR.Bidi_kernelattentionv7.option_bidi import cfg as args
+# from UDL.hisr.HISR.Bidi_kernelattentionv7.model_SR import build
+# from UDL.hisr.HISR.Bidi_kernelattentionv8.option_bidi import cfg as args
+# from UDL.hisr.HISR.Bidi_kernelattentionv8.model_SR import build
+from UDL.hisr.HISR.Bidi_kernelattentionv9.option_bidi import cfg as args
+from UDL.hisr.HISR.Bidi_kernelattentionv9.model_SR import build
 
 
 import os
