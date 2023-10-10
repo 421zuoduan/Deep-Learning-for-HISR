@@ -15,13 +15,15 @@
 
 * BDT_KAv2：KernelAttention训练时保持窗口数量不变，无法利用金字塔结构的感受野变化的信息
 
-* BDT_KAv3：KernelAttention放在Stage的最后
+* BDT_KAv3：KernelAttention放在Stage的最后，
 
-* BDT_KAv4：KernelAttention去掉了结尾的shortcut和norm，其他与v2保持一致
+* [code wrong] BDT_KAv4：KernelAttention去掉了结尾的shortcut和norm，其他与v2保持一致
 
-* BDT_KAv5：KernelAttention去掉了shortcut（原先有两个shortcut），其他与v3保持一致
+* BDT_KAv5：KernelAttention去掉了shortcut（原先有两个shortcut），没有保留layernorm，其他与v3保持一致
 
-* BDT_KAv6：v4中有partition处代码写错了，remake
+* [code wrong] BDT_KAv6：v4中有partition处代码写错了，reverse没改，remake吧:(
+
+* BDT_KAv7：v4中有partition处代码写错了，reverse改了，哥们你没改代码啊。改了重新跑
 
 
 
@@ -40,4 +42,4 @@
 |----|----|----|----|----|----|
 |BDT|2.0513608|1.0617744|51.7136470|2号机|20231008|
 |BDT_KAv3|2.0838372|1.0551306|51.6975372|6号机|20231008|
-|BDT_KAv4|||||
+|BDT_KAv4|2.1197825|1.1010958|51.3766497|6号机|20231009|
