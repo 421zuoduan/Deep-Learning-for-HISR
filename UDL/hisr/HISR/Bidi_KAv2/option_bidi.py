@@ -1,3 +1,4 @@
+# -*- encoding: utf-8 -*-
 import argparse
 from UDL.Basis.option import hisr_cfg, Config
 import os
@@ -6,23 +7,22 @@ cfg = Config(hisr_cfg())
 
 script_path = os.path.dirname(os.path.dirname(__file__))
 
-# root_dir = script_path.split('AutoDL')[0]
-
 root_dir = script_path.split(cfg.task)[0]
 print(root_dir)
-parser = argparse.ArgumentParser(description='PyTorch derain Training')
-parser.add_argument('--name', default='PSRT', type=str)
-parser.add_argument('--test_epoch', default='2001', type=int)
+parser = argparse.ArgumentParser(description='PyTorch hisr Training')
+parser.add_argument('--name', default='Bidi_KAv2', type=str)
 
-# model_path = ''
-model_path = f'{root_dir}/results/{cfg.task}/PSRTv1/cave_x4/Test/model_2023-08-12-11-14/1985.pth.tar'
+model_path = f'{root_dir}/results/{cfg.task}/Bidi_merge1_xca_group1_light_48/cave_x4/AdaTrans/Test/model_2022-11-02-10-15/2000.pth.tar'
+# model_path = f'UDL\\results\\hisr\\Bidi_kernelattentionv2\\cave_x4\\AdaTrans\\Test\\model_2023-10-06-21-56\\1350.pth.tar'
 
 parser.add_argument('--out_dir', metavar='DIR', default=f'{root_dir}/results/{cfg.task}',
                     help='path to save model')
+parser.add_argument('--test_epoch', default=2000, type=int, help='epoch to save model')
+
 # * Training
-parser.add_argument('--lr', default=1e-4, type=float)
-parser.add_argument('--lr_scheduler', default=True, type=bool)
-parser.add_argument('-samples_per_gpu', default=32, type=int,
+parser.add_argument('--lr', default=2e-4, type=float)
+parser.add_argument('--lr_scheduler', default=False, type=bool)
+parser.add_argument('-samples_per_gpu', default=64, type=int,
                     metavar='N', help='mini-batch size (default: 256)')
 parser.add_argument('--print-freq', '-p', default=20, type=int,
                     metavar='N', help='print frequency (default: 10)')
@@ -35,7 +35,7 @@ parser.add_argument('--resume',
 # * Model and Dataset
 parser.add_argument('--arch', '-a', metavar='ARCH', default='AdaTrans', type=str)
 parser.add_argument('--dataset', default='cave_x4', type=str,
-                    choices=['cave_x4', 'cave_x8', 'harvard_x4', 'Chikusei_x4', 'pavia_x4'],
+                    choices=['cave_x4', 'harvard_x4'],
                     help="Datasets")
 parser.add_argument('--eval', default=False, type=bool,
                     help="performing evalution for patch2entire")
@@ -70,5 +70,3 @@ cfg.reset_lr = True
 cfg.mode = "none"
 cfg.merge_args2cfg(args)
 print(cfg.pretty_text)
-
-

@@ -12,8 +12,10 @@ from UDL.hisr.HISR.PSRT.model_PSRT import build
 # from UDL.hisr.HISR.PSRT_kernelattentionv3.model_PSRT import build
 # from UDL.hisr.HISR.PSRT_kernelattentionv4.option_hisr_PSRT import cfg as args
 # from UDL.hisr.HISR.PSRT_kernelattentionv4.model_PSRT import build
-from UDL.hisr.HISR.PSRT_kernelattentionv5.option_hisr_PSRT import cfg as args
-from UDL.hisr.HISR.PSRT_kernelattentionv5.model_PSRT import build
+# from UDL.hisr.HISR.PSRT_kernelattentionv5.option_hisr_PSRT import cfg as args
+# from UDL.hisr.HISR.PSRT_kernelattentionv5.model_PSRT import build
+from UDL.hisr.HISR.PSRT_KAv1.option_hisr_PSRT import cfg as args
+from UDL.hisr.HISR.PSRT_KAv1.model_PSRT import build
 
 
 import os
