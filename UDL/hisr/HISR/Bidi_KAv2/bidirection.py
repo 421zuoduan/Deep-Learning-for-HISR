@@ -175,7 +175,7 @@ def ka_window_reverse(windows, window_size, H, W):
 
 class SELayer_KA(nn.Module):
     def __init__(self, channel):
-        super(SELayer_KA, self).__init__()
+        super().__init__()
         self.se = nn.Sequential(nn.AdaptiveAvgPool2d((1, 1)),
                                 nn.Conv2d(channel, channel // 16 if channel >= 64 else channel, kernel_size=1),
                                 nn.ReLU(),
@@ -190,11 +190,7 @@ class SELayer_KA(nn.Module):
 
 class ConvLayer(nn.Module):
     def __init__(self, dim, win_num, kernel_size=3, stride=1, padding=1):
-        super(ConvLayer, self).__init__()
-        self.dim = dim
-        self.kernel_size = kernel_size
-        self.stride = stride
-        self.padding = padding
+        super().__init__()
 
         self.conv = nn.Conv2d(win_num*dim, win_num*dim, kernel_size=kernel_size, stride=stride, padding=padding, groups=win_num)
 
@@ -235,7 +231,7 @@ class KernelAttention(nn.Module):
         self.kernel_size = kernel_size
 
         self.scale = qk_scale or (dim//num_heads) ** (-0.5)
-        self.window_size = int(input_resolution[0] // sqrt(ka_win_num))
+        self.window_size = int(input_resolution // sqrt(ka_win_num))
 
         self.norm = nn.LayerNorm(dim)
         self.num_layers = self.win_num
@@ -256,7 +252,7 @@ class KernelAttention(nn.Module):
         x: B, L, C
         """
         B, L, C = x.shape
-        H, W = self.input_resolution
+        H, W = self.input_resolution, self.input_resolution
         # shortcut = x
 
         # x_windows:  bs, win_num*c, wh, ww
@@ -402,7 +398,7 @@ class Stage(nn.Module):
             dim//2, num_heads=num_heads//2,
             qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
         
-        self.kernel_attn1 = KernelAttention(dim//2, input_resolution, num_heads=num_heads//2, ka_win_num=self.ka_win_num, kernel_size=3, stride=1, padding=1)
+        self.kernel_attn1 = KernelAttention(dim//2, input_resolution[0], num_heads=num_heads//2, ka_win_num=self.ka_win_num, kernel_size=3, stride=1, padding=1)
 
         self.win_attn2 = WindowAttention(
             dim, num_heads=num_heads,
@@ -412,7 +408,7 @@ class Stage(nn.Module):
             dim//2, num_heads=num_heads//2,
             qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
         
-        self.kernel_attn3 = KernelAttention(dim//2, input_resolution, num_heads=num_heads//2, ka_win_num=self.ka_win_num, kernel_size=3, stride=1, padding=1)
+        self.kernel_attn3 = KernelAttention(dim//2, input_resolution[0], num_heads=num_heads//2, ka_win_num=self.ka_win_num, kernel_size=3, stride=1, padding=1)
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
         self.norm1 = norm_layer(dim)

@@ -80,7 +80,7 @@ BDT设bs=64，lr=2e-4。后续需要重新实验，设置bs=32，lr=1e-4
 |BDT_kernelattentionv7|2.0654192|1.0971936|51.4890792|3.545 M|6号机|20231010|
 |BDT_kernelattentionv8|-|-|-|-|-|
 |BDT_kernelattentionv9|2.3876350|1.1874575|50.5793433|4.637 M|2号机|20231010|
-|BDT_KAv2|||||||
+|BDT_KAv2||||3.350 M|||
 
 
 ### PSNR模型改进的测试结果

@@ -46,7 +46,7 @@ class PSRTnet(PatchMergeModule):
     def __init__(self, args):
         super(PSRTnet, self).__init__()
         self.args = args
-        self.img_size = 128
+        self.img_size = 64
         self.in_channels = 31
         self.embed = 48
         self.conv = nn.Sequential(
