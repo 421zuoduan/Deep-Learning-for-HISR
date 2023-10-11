@@ -11,7 +11,7 @@ import math
 import torch
 from torch import optim
 from UDL.Basis.criterion_metrics import *
-from UDL.hisr.HISR.PSRT.psrt import *
+from UDL.hisr.HISR.PSRT_kernelattentionv5.psrt import *
 from UDL.pansharpening.common.evaluate import analysis_accu
 from UDL.Basis.module import PatchMergeModule
 from UDL.Basis.pytorch_msssim.cal_ssim import SSIM
@@ -48,7 +48,7 @@ class PSRTnet(PatchMergeModule):
         self.args = args
         self.img_size = 128
         self.in_channels = 31
-        self.embed = 32
+        self.embed = 48
         self.conv = nn.Sequential(
             nn.Conv2d(self.embed, self.in_channels, 3, 1, 1), nn.LeakyReLU(0.2, True)
         )
