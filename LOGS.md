@@ -56,6 +56,8 @@ module放在stage最后:
 
 目前先做双分支吧
 * PSRT_noshuffle：把shuffle都变成普通的Swin Block
+* PSRT_KAv1_noshuffle：把卷全局的KA放进noshuffle的PSRT中
+* PSRT_KAv1_noshuffle：把卷局部的KA放进noshuffle的PSRT中
 * PSRT_kernelattentionv5：使用KA的旧代码进行改进
 * PSRT_KAv1：使用重构后的KA代码进行改进
 
@@ -94,8 +96,7 @@ PSRT设置bs=32，lr=1e-4
 |PSRT(embed_Dim=32)|-|-|-|0.248 M|-|-|
 |PSRT(embed_Dim=48)|2.2407495|2.4452974|50.0313946|0.538 M|6号机|20231011 1day 22h|
 |PSRT(embed_Dim=64)|-|-|-|0.939 M|-|-|
-
-|PSRT_KAv5||||0.665 M|||
-
+|PSRT_kernelattentionv5||||0.665 M|||
 |PSRT_noshuffle||||0.538 M|||
-|PSRT_KAv1_noshuffle||||0.538 M|||
+|PSRT_KAv1_noshuffle||||0.779 M|||
+|PSRT_KAv2_noshuffle||||0.854 M|||

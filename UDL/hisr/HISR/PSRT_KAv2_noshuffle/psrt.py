@@ -101,7 +101,6 @@ class Attention(nn.Module):
         return x
     
 
-
 def ka_window_partition(x, window_size):
     """
     input: (B, H*W, C)
@@ -171,7 +170,7 @@ class KernelAttention(nn.Module):
     """
 
     def __init__(self, dim, input_resolution, num_heads, ka_win_num=4, kernel_size=3, stride=1, padding=1, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.):
-        super(KernelAttention, self).__init__()
+        super().__init__()
 
         self.dim = dim
         self.input_resolution = input_resolution
@@ -275,7 +274,7 @@ class Window_Attention(nn.Module):
 
     def __init__(self, dim=32, input_resolution=16, num_heads=8, window_size=4,
                  mlp_ratio=4., qkv_bias=True, qk_scale=4, drop=0., attn_drop=0., drop_path=0.,
-                 act_layer=nn.GELU, norm_layer=nn.LayerNorm):
+                 act_layer=nn.GELU, norm_layer=nn.LayerNorm, ka_win_num=4):
         super().__init__()
         self.dim = dim
         self.input_resolution = to_2tuple(input_resolution)
@@ -285,7 +284,7 @@ class Window_Attention(nn.Module):
 
         assert 0 <= self.window_size <= input_resolution, "input_resolution should be larger than window_size"
 
-        self.KernelAttention = KernelAttention(dim//2, input_resolution, num_heads=num_heads//2, ka_win_num=4, kernel_size=3, stride=1, padding=1)
+        self.KernelAttention = KernelAttention(dim//2, input_resolution, num_heads=num_heads//2, ka_win_num=ka_win_num, kernel_size=3, stride=1, padding=1)
         self.attn = Attention(
             dim//2, num_heads=num_heads//2,
             qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
@@ -560,10 +559,14 @@ class SaR_Block(nn.Module):
         self.norm3 = norm_layer(in_chans)
         self.WA1 = Window_Attention(dim=self.in_channels, input_resolution=img_size, num_heads=head,
                                     window_size=win_size)
-        self.WA2 = Window_Attention_Shuffle(dim=self.in_channels, input_resolution=img_size, num_heads=head,
+        self.WA2 = Window_Attention(dim=self.in_channels, input_resolution=img_size, num_heads=head,
                                     window_size=win_size)
-        self.WA3 = Window_Attention_Reshuffle(dim=self.in_channels, input_resolution=img_size, num_heads=head,
+        self.WA3 = Window_Attention(dim=self.in_channels, input_resolution=img_size, num_heads=head,
                                     window_size=win_size)
+        # self.WA2 = Window_Attention_Shuffle(dim=self.in_channels, input_resolution=img_size, num_heads=head,
+        #                             window_size=win_size)
+        # self.WA3 = Window_Attention_Reshuffle(dim=self.in_channels, input_resolution=img_size, num_heads=head,
+        #                             window_size=win_size)
 
 
     def forward(self, H, W, x):
@@ -623,6 +626,6 @@ if __name__ == '__main__':
     import time
     start = time.time()
     input = torch.randn(1, 32, 64, 64)
-    encoder = Block(out_num=2, inside_num=3, img_size=64, in_chans=32, embed_dim=64, head=8, win_size=8)
+    encoder = Block(out_num=2, inside_num=3, img_size=64, in_chans=32, embed_dim=32, head=8, win_size=8)
     output = encoder(64, 64, input)
     print(output.shape)
