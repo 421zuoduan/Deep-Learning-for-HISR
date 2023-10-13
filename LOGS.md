@@ -48,13 +48,14 @@ module放在stage最后:
 
 在双分支上重新写代码：
 
-* BDT_KAv2：试图实现对整张图卷积，还没有写完
-* BDT_KAv3：KA代码重构完成，后续的KA可以从这里调取
+* BDT_KAv1：试图实现对整张图卷积，还没有写完
+* BDT_KAv2：KA代码重构完成，后续的KA可以从这里调取
 
 
 ### 基于PSRT的改进
 
 目前先做双分支吧
+* PSRT_noshuffle：把shuffle都变成普通的Swin Block
 * PSRT_kernelattentionv5：使用KA的旧代码进行改进
 * PSRT_KAv1：使用重构后的KA代码进行改进
 
@@ -95,3 +96,6 @@ PSRT设置bs=32，lr=1e-4
 |PSRT(embed_Dim=64)|-|-|-|0.939 M|-|-|
 
 |PSRT_KAv5||||0.665 M|||
+
+|PSRT_noshuffle||||0.538 M|||
+|PSRT_KAv1_noshuffle||||0.538 M|||

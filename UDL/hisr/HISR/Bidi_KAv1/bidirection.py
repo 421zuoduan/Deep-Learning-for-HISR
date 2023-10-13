@@ -161,18 +161,6 @@ def ka_window_partition(x, window_size):
     windows = x.permute(0, 1, 3, 5, 2, 4).contiguous().view(B, -1, window_size, window_size)
     return windows
 
-
-def ka_window_reverse(windows, window_size, H, W):
-    """
-    input: (B, C, window_size, window_size)
-    output: (B, H*W, C)
-    """
-    B = windows.shape[1]
-    x = windows.contiguous().view(H // window_size, W // window_size, B, -1, window_size, window_size)
-    x = x.permute(2, 0, 4, 1, 5, 3).contiguous().view(B, H*W, -1)
-    return x
-
-
 class SELayer_KA(nn.Module):
     def __init__(self, channel):
         super().__init__()
@@ -188,22 +176,6 @@ class SELayer_KA(nn.Module):
         return x
     
 
-class ConvLayer(nn.Module):
-    def __init__(self, dim, kernel_size=3, stride=1, padding=1):
-        super().__init__()
-        self.dim = dim
-        self.kernel_size = kernel_size
-        self.stride = stride
-        self.padding = padding
-
-        self.conv = nn.Conv2d(dim, dim, kernel_size=kernel_size, stride=stride, padding=padding, bias=False)
-
-    def forward(self, x, kernels=None):
-
-        x = self.conv(x)
-
-        return x, self.conv.weight.view(self.conv.weight.shape[0], self.conv.weight.shape[1], -1).permute(0, 2, 1)
-
 class KernelAttention(nn.Module):
     """
     第一个分组卷积产生核，然后计算核的自注意力，调整核，第二个分组卷积产生输出，skip connection
@@ -218,7 +190,6 @@ class KernelAttention(nn.Module):
         proj_drop: 输出dropout
         ka_window_size: kernel attention window size
         kernel_size: 卷积核大小
-        kernel_dim_scale: 卷积核通道数缩放因子, 未使用
         stride: 卷积步长
         padding: 卷积padding
     """
@@ -264,7 +235,7 @@ class KernelAttention(nn.Module):
         kernels = self.pooling(x_windows)
         
         # kernels:  bs, win_num*k_size**2, c
-        kernels = kernels.permute(0, 2, 3, 1).reshape(B, self.win_num*self.kernel_size**2, C)
+        kernels = kernels.reshape(B, self.win_num, self.dim, self.kernel_size**2).permute(0, 1, 3, 2).reshape(B, self.win_num*self.kernel_size**2, self.dim)
 
 
         ### 下面想要计算所有卷积核间的自注意力，再经过SE
@@ -291,17 +262,19 @@ class KernelAttention(nn.Module):
         # kernels:  bs*win_num, c, k_size, k_size
         kernels = kernels.reshape(B, self.win_num, self.kernel_size, self.kernel_size, self.dim).permute(0, 1, 4, 2, 3).reshape(B*self.win_num, self.dim, self.kernel_size, self.kernel_size)
 
-        # kernels:  win_num*c, c, k_size, k_size
+        # kernels:  bs*win_num, c, k_size, k_size
         kernels = self.se(kernels)
 
 
         ### 下面获取可用于卷积的卷积核参数
+        # TODO: 这里暴力使用全连接层升高通道数，参数是c**3，参数量同样不小？
         ### 使用linear提高通道维数
         # kernels:  bs*win_num, k_size, k_size, c**2
         kernels = self.kernel_linear(kernels.permute(0, 2, 3, 1))
 
         # kernels:  bs*win_num, k_size, k_size, c, c
         kernels = kernels.reshape(B*self.win_num, self.kernel_size, self.kernel_size, self.dim, self.dim)
+        # TODO: 这里应该把经过全连接层后生成的两个c，哪个作为卷积核的通道呢？
         # kernels:  bs*win_num*c, c, k_size, k_size
         kernels = kernels.permute(0, 3, 4, 1, 2).reshape(self.win_num*B*self.dim, self.dim, self.kernel_size, self.kernel_size)
 
@@ -324,12 +297,6 @@ class KernelAttention(nn.Module):
 
         return x
     
-
-
-
-
-
-
 
 class WindowAttention(nn.Module):
     r""" Window based multi-head self attention (W-MSA) module with relative position bias.
