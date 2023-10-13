@@ -153,18 +153,18 @@ class PatchMerging(nn.Module):
 def ka_window_partition(x, window_size):
     """
     input: (B, H*W, C)
-    output: (num_windows, B, C, window_size, window_size)
+    output: (B, num_windows*C, window_size, window_size)
     """
     B, L, C = x.shape
     H, W = int(sqrt(L)), int(sqrt(L))
     x = x.reshape(B, H // window_size, window_size, W // window_size, window_size, C)
-    windows = x.permute(1, 3, 0, 5, 2, 4).contiguous().view(-1, B, C, window_size, window_size)
+    windows = x.permute(0, 1, 3, 5, 2, 4).contiguous().view(B, -1, window_size, window_size)
     return windows
 
 
 def ka_window_reverse(windows, window_size, H, W):
     """
-    input: (num_windows, B, C, window_size, window_size)
+    input: (B, C, window_size, window_size)
     output: (B, H*W, C)
     """
     B = windows.shape[1]
@@ -175,7 +175,7 @@ def ka_window_reverse(windows, window_size, H, W):
 
 class SELayer_KA(nn.Module):
     def __init__(self, channel):
-        super(SELayer_KA, self).__init__()
+        super().__init__()
         self.se = nn.Sequential(nn.AdaptiveAvgPool2d((1, 1)),
                                 nn.Conv2d(channel, channel // 16 if channel >= 64 else channel, kernel_size=1),
                                 nn.ReLU(),
@@ -190,7 +190,7 @@ class SELayer_KA(nn.Module):
 
 class ConvLayer(nn.Module):
     def __init__(self, dim, kernel_size=3, stride=1, padding=1):
-        super(ConvLayer, self).__init__()
+        super().__init__()
         self.dim = dim
         self.kernel_size = kernel_size
         self.stride = stride
@@ -224,7 +224,7 @@ class KernelAttention(nn.Module):
     """
 
     def __init__(self, dim, input_resolution, num_heads, ka_win_num=4, kernel_size=3, stride=1, padding=1, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.):
-        super(KernelAttention, self).__init__()
+        super().__init__()
 
         self.dim = dim
         self.input_resolution = input_resolution
@@ -233,35 +233,21 @@ class KernelAttention(nn.Module):
         self.stride = stride
         self.padding = padding
         self.kernel_size = kernel_size
-
         self.scale = qk_scale or (dim//num_heads) ** (-0.5)
         self.window_size = int(input_resolution[0] // sqrt(ka_win_num))
 
+        self.pooling = nn.AdaptiveAvgPool2d((kernel_size, kernel_size))
+        self.se = SELayer_KA(dim)
+        self.kernel_linear = nn.Linear(self.dim, self.dim**2)
+
         self.norm = nn.LayerNorm(dim)
-        self.num_layers = self.win_num
-        self.convlayers = nn.ModuleList()
-        self.selayers = nn.ModuleList()
-        for i_layer in range(self.num_layers):
-            layer = ConvLayer(self.dim, self.kernel_size, stride=stride, padding=padding)
-            self.convlayers.append(layer)
-        for j_layer in range(self.num_layers):
-            layer = SELayer_KA(self.dim)
-            self.selayers.append(layer)
-
         self.proj_qkv = nn.Linear(self.dim, self.dim*3, bias=qkv_bias)
-
         self.attn_drop = nn.Dropout(attn_drop)
         self.softmax = nn.Softmax(dim=-1)
         self.proj_drop = nn.Dropout(proj_drop)
         self.proj_out = nn.Linear(self.dim, self.dim)
 
-        self.layernorm = nn.LayerNorm(dim)
-
-
-        self.pooling = nn.AdaptiveAvgPool2d((kernel_size, kernel_size))
-
-        self.kernel_linear = nn.Linear(self.dim, self.dim**2)
-
+        self.concat_linear = nn.Linear(self.win_num*self.dim, self.dim)
 
     def forward(self, x):
         """
@@ -270,18 +256,18 @@ class KernelAttention(nn.Module):
         B, L, C = x.shape
         H, W = self.input_resolution
         
-
-        # x_windows:  win_num, bs, c, wh, ww
+        ### 下面想要从Feature Map中通过池化和全连接层获取可得到单一输出通道的卷积核
+        # x_windows:  bs, win_num*c, wh, ww
         x_windows = ka_window_partition(x, self.window_size)
 
-        # kernels:  win_num, bs, c, k_size, k_size
+        # kernels:  bs, win_num*c, k_size, k_size
         kernels = self.pooling(x_windows)
         
         # kernels:  bs, win_num*k_size**2, c
-        kernels = kernels.permute(1, 0, 3, 4, 2).view(B, self.win_num*self.kernel_size**2, C)
+        kernels = kernels.permute(0, 2, 3, 1).reshape(B, self.win_num*self.kernel_size**2, C)
 
 
-        ### 下面想要计算所有卷积核间的自注意力
+        ### 下面想要计算所有卷积核间的自注意力，再经过SE
         # kernels_qkv:  3, bs, num_heads, win_num*k_size**2, c/num_heads
         kernels_qkv = self.proj_qkv(kernels).reshape(B, self.win_num*self.kernel_size**2, 3, self.num_heads, self.dim//self.num_heads).permute(2, 0, 3, 1, 4)
 
@@ -300,70 +286,41 @@ class KernelAttention(nn.Module):
         # kernels:  bs, win_num*k_size**2, c
         kernels = self.proj_out(kernels)
         
-        # TODO check: 此处kernels由win_num*k_size**2拆开，win_num的维度是在k_size前面还是后面
-        # kernels:  win_num, bs, c, k_size, k_size
-        kernels = kernels.reshape(B, self.win_num, self.kernel_size, self.kernel_size, self.dim).permute(0, 1, 4, 2, 3)
-        # kernels:  bs*win_num, c, k_size, k_size
-        kernels = kernels.reshape(B*self.win_num, self.dim, self.kernel_size, self.kernel_size)
 
-        ### 进行SE操作
+        ### 下面对卷积核进行SE
         # kernels:  bs*win_num, c, k_size, k_size
+        kernels = kernels.reshape(B, self.win_num, self.kernel_size, self.kernel_size, self.dim).permute(0, 1, 4, 2, 3).reshape(B*self.win_num, self.dim, self.kernel_size, self.kernel_size)
+
+        # kernels:  win_num*c, c, k_size, k_size
         kernels = self.se(kernels)
 
-        # kernels: bs*win_num, k_size**2, c
-        kernels = kernels.permute(0, 2, 3, 1).reshape(B*self.win_num, self.kernel_size, self.kernel_size, self.dim)
 
+        ### 下面获取可用于卷积的卷积核参数
         ### 使用linear提高通道维数
-        # kernels:  bs*win_num, c**2
-        kernels = self.kernel_linear(kernels)
+        # kernels:  bs*win_num, k_size, k_size, c**2
+        kernels = self.kernel_linear(kernels.permute(0, 2, 3, 1))
 
-        # kernels:  bs, win_num, k_size, k_size, c, c
-        kernels = kernels.reshape(B, self.win_num, self.kernel_size, self.kernel_size, self.dim, self.dim)
+        # kernels:  bs*win_num, k_size, k_size, c, c
+        kernels = kernels.reshape(B*self.win_num, self.kernel_size, self.kernel_size, self.dim, self.dim)
         # kernels:  bs*win_num*c, c, k_size, k_size
-        kernels = kernels.permute(0, 1, 4, 5, 2, 3).reshape(-1, self.dim, self.kernel_size, self.kernel_size)
+        kernels = kernels.permute(0, 3, 4, 1, 2).reshape(self.win_num*B*self.dim, self.dim, self.kernel_size, self.kernel_size)
 
 
         ### 下面进行卷积操作
-        # x_windows:  1, bs*win_num*c, wh, ww
-        x_windows = x_windows.transpose(0, 1).view(1, -1, self.window_size, self.window_size)
+        # x:  bs, c, h, w
+        x = x.reshape(B, H, W, C).permute(0, 3, 1, 2)
 
-        # x_windows:  1, bs*win_num*c, wh, ww
-        x_windows = F.conv2d(x_windows, weight=kernels, bias=None, stride=self.stride, padding=self.padding, group=B*self.win_num)
+        # x:  1, bs*win_num*c, h, w
+        x = x.repeat(1, self.win_num, 1, 1).view(1, B*self.win_num*self.dim, H, W)
 
-        # x_windows:  bs, win_num, c, wh, ww
-        x_windows = x_windows.view(B, self.win_num, C, self.window_size, self.window_size)
+        # x:  1, bs*win_num*c, h, w
+        x = F.conv2d(x, kernels, stride=self.stride, padding=self.padding, groups=B*self.win_num)
 
-
-
-
-
-        ### 下面计算SELayer输出并重新进行卷积
-        # kernels:  win_num, out_c, in_c, k_size, k_size
-        # x_windows_origin:  win_num, bs, c, wh, ww
-        i = 0
-        x_windows_out = []
-
-        for selayer in self.selayers:
-            # kernel:  out_c, in_c, k_size, k_size
-            kernel = selayer(kernels[i])
-            # x_window:  bs, c, wh, ww
-            x_window = F.conv2d(x_windows[i], weight=kernel, bias=None, stride=self.stride, padding=self.padding).unsqueeze(0)
-
-            # TODO check: 此处由1, bs*c, h, w变为1, bs, c, h, w的操作是否正确
-            # x_window:  1, bs, c, wh, ww
-            # x_window = x_window.view(B, self.dim, self.window_size, self.window_size).unsqueeze(0)
-            x_windows_out.append(x_window)
-            i = i + 1
-
-        # x_windows:  win_num, bs, c, wh, ww
-        x_windows = torch.cat(x_windows_out, 0)
+        # x:  bs, h*w, win_num*c 
+        x = x.reshape(B, self.win_num*self.dim, H*W).permute(0, 2, 1)
 
         # x:  bs, h*w, c
-        x = ka_window_reverse(x_windows, self.window_size, H, W)
-
-        # x = self.layernorm(x.permute(0, 2, 3, 1)).permute(0, 3, 1, 2)
-
-        # x = shortcut + x
+        x = self.concat_linear(x)
 
         return x
     
@@ -454,10 +411,11 @@ class Stage(nn.Module):
         self.window_size = window_size
         self.mlp_ratio = mlp_ratio
         # self.ka_window_size = (input_resolution[0] // 64) * 16
-        if stage == 1:
-            self.ka_win_num = 16
-        elif stage == 2 or 3:
-            self.ka_win_num = 4
+        # if stage == 1:
+        #     self.ka_win_num = 16
+        # elif stage == 2 or 3:
+        #     self.ka_win_num = 4
+        self.ka_win_num = 4
 
         assert 0 <= self.window_size <= input_resolution[0], "input_resolution should be larger than window_size"
         assert 0 <= self.window_size <= input_resolution[1], "input_resolution should be larger than window_size"

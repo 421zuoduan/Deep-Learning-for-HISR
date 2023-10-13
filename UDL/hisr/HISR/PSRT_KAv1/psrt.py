@@ -205,7 +205,6 @@ class KernelAttention(nn.Module):
         """
         B, L, C = x.shape
         H, W = self.input_resolution, self.input_resolution
-        # shortcut = x
 
         # x_windows:  bs, win_num*c, wh, ww
         x_windows = ka_window_partition(x, self.window_size)
