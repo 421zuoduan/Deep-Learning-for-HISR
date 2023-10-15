@@ -52,19 +52,29 @@ module放在stage最后:
 * BDT_KAv2：KA代码重构完成，后续的KA可以从这里调取
 
 
+
+
+
 ### 基于PSRT的改进
 
 目前先做双分支吧
 * PSRT_noshuffle：把shuffle都变成普通的Swin Block
-* PSRT_KAv1_noshuffle：把卷全局的KA放进noshuffle的PSRT中
-* PSRT_KAv1_noshuffle：把卷局部的KA放进noshuffle的PSRT中
-* PSRT_kernelattentionv5：使用KA的旧代码进行改进
-* PSRT_KAv1：使用重构后的KA代码进行改进
+* PSRT_KAv1_noshuffle：把卷全局的KA放进noshuffle的PSRT中，但是是新写法
+* PSRT_KAv2_noshuffle：把卷局部的KA放进noshuffle的PSRT中
+* PSRT_KAv3_noshuffle：卷局部的KA，但是老代码
+* PSRT_kernelattentionv5：使用KA的旧代码进行改进（有for）
+* PSRT_KAv1：使用重构后的KA代码进行改进（没有for）
+
+
+
 
 
 ## 训练说明（笔记本4060）
 
 * 20231009：跑BDT_KAv4，凌晨。运行768epoch，后续放在6号机上运行
+
+
+
 
 
 ## 测试结果
@@ -94,9 +104,11 @@ PSRT设置bs=32，lr=1e-4
 |模型|SAM|ERGAS|PSNR|参数量|训练位置|时间|
 |----|----|----|----|----|----|----|
 |PSRT(embed_Dim=32)|-|-|-|0.248 M|-|-|
-|PSRT(embed_Dim=48)|2.2407495|2.4452974|50.0313946|0.538 M|6号机|20231011 1day 22h|
 |PSRT(embed_Dim=64)|-|-|-|0.939 M|-|-|
-|PSRT_kernelattentionv5||||0.665 M|||
-|PSRT_noshuffle||||0.538 M|||
-|PSRT_KAv1_noshuffle||||0.779 M|||
-|PSRT_KAv2_noshuffle||||0.854 M|||
+|PSRT(embed_Dim=48)|2.2407495|2.4452974|50.0313946|0.538 M|6号机|20231011 1day 22h|
+|PSRT_kernelattentionv5||||0.665 M|2号机||
+|PSRT_KAv1(embed_Dim=48)|2.2844245|2.5096108|49.8647584|0.665 M|2号机|20231012|
+|PSRT_noshuffle||||0.538 M|6号机||
+|PSRT_KAv1_noshuffle||||0.779 M|还没有跑||
+|PSRT_KAv2_noshuffle||||0.854 M|6号机|| 
+|PSRT_KAv3_noshuffle||||0.918 M|2号机||
