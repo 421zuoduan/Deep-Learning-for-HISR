@@ -62,6 +62,7 @@ module放在stage最后:
 * PSRT_KAv1_noshuffle：把卷全局的KA放进noshuffle的PSRT中，但是是新写法
 * PSRT_KAv2_noshuffle：把卷局部的KA放进noshuffle的PSRT中，没有for
 * PSRT_KAv3_noshuffle：卷局部的KA，老代码有for
+* PSRT_KAv4_noshuffle：卷局部、卷全局进行fusion，有for
 * 
 * PSRT_kernelattentionv5：使用KA的旧代码进行改进（有for）
 * PSRT_KAv1：使用重构后的KA代码进行改进（没有for）
@@ -107,11 +108,11 @@ PSRT设置bs=32，lr=1e-4
 |PSRT(embed_Dim=32)|-|-|-|0.248 M|-|-|
 |PSRT(embed_Dim=64)|-|-|-|0.939 M|-|-|
 |PSRT(embed_Dim=48)|2.2407495|2.4452974|50.0313946|0.538 M|6号机|20231011 1day 22h|
-|PSRT_kernelattentionv5||||0.665 M|2号机||
+|PSRT_kernelattentionv5||||0.665 M|2号机 UDL|20231015|
 |PSRT_KAv1(embed_Dim=48)|2.2844245|2.5096108|49.8647584|0.665 M|2号机|20231012|
 |PSRT_noshuffle|2.1245276|2.2309420|50.4692293|0.538 M|6号机|20231013|
-|PSRT_KAv1_noshuffle||||0.854 M|还没有跑||          
+|PSRT_KAv1_noshuffle||||0.854 M|6号机 UDL|20231017|
 |PSRT_KAv2_noshuffle|2.2752936|2.0677896|49.6950313|0.854 M|6号机|20231013|
 |PSRT_KAv3_noshuffle|2.2756061|1.7408064|50.1445174|0.918 M|2号机|20231015|
-|PSRT_KAv4_noshuffle||||1.002 M|||
+|PSRT_KAv4_noshuffle||||1.002 M|2号机 UDLv2|20231018|
 
