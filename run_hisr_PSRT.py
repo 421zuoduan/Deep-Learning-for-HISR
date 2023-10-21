@@ -28,6 +28,8 @@ from UDL.hisr.HISR.PSRT.model_PSRT import build
 # from UDL.hisr.HISR.PSRT_KAv4_noshuffle.model_PSRT import build
 from UDL.hisr.HISR.PSRT_KAv5_noshuffle.option_hisr_PSRT import cfg as args
 from UDL.hisr.HISR.PSRT_KAv5_noshuffle.model_PSRT import build
+# from UDL.hisr.HISR.PSRT_KAv6_noshuffle.option_hisr_PSRT import cfg as args
+# from UDL.hisr.HISR.PSRT_KAv6_noshuffle.model_PSRT import build
 
 
 
