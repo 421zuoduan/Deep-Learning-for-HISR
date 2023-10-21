@@ -141,7 +141,7 @@ class SELayer_KA(nn.Module):
 
 class ConvLayer(nn.Module):
     def __init__(self, dim, kernel_size=3, stride=1, padding=1):
-        super(ConvLayer, self).__init__()
+        super().__init__()
         self.dim = dim
         self.kernel_size = kernel_size
         self.stride = stride
@@ -153,7 +153,7 @@ class ConvLayer(nn.Module):
 
         x = self.conv(x)
 
-        return x, self.conv.weight.view(self.conv.weight.shape[0], self.conv.weight.shape[1], -1).permute(0, 2, 1)
+        return x, self.conv.weight
 
 class KernelAttention(nn.Module):
     """
@@ -200,6 +200,10 @@ class KernelAttention(nn.Module):
             self.selayers.append(layer)
 
         self.proj_qkv = nn.Linear(self.dim, self.dim*3, bias=qkv_bias)
+        self.kernel_linear = nn.Conv2d(self.win_num*self.dim, self.dim, kernel_size=1, stride=1, padding=0)
+        self.se = SELayer_KA(dim)
+        self.global_kernel_selayer = SELayer_KA(self.dim)
+        self.fusion = nn.Conv2d(self.dim*(self.win_num+1), self.dim, kernel_size=1, stride=1, padding=0)
 
         self.attn_drop = nn.Dropout(attn_drop)
         self.softmax = nn.Softmax(dim=-1)
@@ -224,59 +228,71 @@ class KernelAttention(nn.Module):
         kernels = []
         
         for convlayer in self.convlayers:
-            # kernel: out_c, k_size**2, in_c
+            # kernel: out_c, in_c, k_size, k_size
             _, kernel = convlayer(x_windows[i], kernels=None)
             kernels.append(kernel)
             i = i + 1
         # kernels:  列表中有win_num个 out_c, k_size**2, in_c 的张量
 
-
-        ### 下面想要计算所有卷积核间的自注意力
-        # kernels:  out_c, win_num*k_size**2, in_c
+        # kernels:  out_c, win_num*in_c, k_size, k_size
         kernels = torch.cat(kernels, 1)
 
-        # kernels_qkv:  3, out_c, num_heads, win_num*k_size**2, in_c/num_heads
-        kernels_qkv = self.proj_qkv(kernels).reshape(self.dim, self.win_num*self.kernel_size**2, 3, self.num_heads, self.dim//self.num_heads).permute(2, 0, 3, 1, 4)
 
-        # out_c, num_heads, win_num*k_size**2, in_c/num_heads
+        ### 下面计算一个全局卷积核，将全局卷积核与窗口卷积核concat
+        # global_kernel: out_c, in_c, k_size, k_size
+        global_kernel = self.kernel_linear(kernels)
+
+        # kernels:  out_c, (win_num+1)*in_c, k_size, k_size
+        kernels = torch.cat([kernels, global_kernel], 1)
+
+
+        ### 下面想要计算所有卷积核间的自注意力，再经过SE
+        # kernels:  c, win_num+1, c, k_size, k_size
+        kernels = kernels.reshape(self.dim, self.win_num+1, self.dim, self.kernel_size, self.kernel_size)
+
+        # kernels:  c, (win_num+1)*k_size**2, c
+        kernels = kernels.permute(0, 1, 3, 4, 2).reshape(self.dim, (self.win_num+1)*self.kernel_size**2, self.dim)
+
+        # kernels_qkv:  3, c, num_heads, (win_num+1)*k_size**2, c/num_heads
+        kernels_qkv = self.proj_qkv(kernels).reshape(self.dim, (self.win_num+1)*self.kernel_size**2, 3, self.num_heads, self.dim//self.num_heads).permute(2, 0, 3, 1, 4)
+
+        # c, num_heads, (win_num+1)*k_size**2, c/num_heads
         kernels_q, kernels_k, kernels_v = kernels_qkv[0], kernels_qkv[1], kernels_qkv[2]
         kernels_q = kernels_q * self.scale
 
-        # attn: out_c, num_heads, win_num*k_size**2, win_num*k_size**2
+        # attn: c, num_heads, (win_num+1)*k_size**2, (win_num+1)*k_size**2
         attn = (kernels_q @ kernels_k.transpose(-2, -1))
         attn = self.softmax(attn)
         attn = self.attn_drop(attn)
 
-        # kernels:  out_c, win_num*k_size**2, in_c
-        kernels = (attn @ kernels_v).transpose(1, 2).reshape(self.dim, self.win_num*self.kernel_size**2, self.dim)
+        # kernels:  c, (win_num+1)*k_size**2, c
+        kernels = (attn @ kernels_v).transpose(1, 2).reshape(self.dim, (self.win_num+1)*self.kernel_size**2, self.dim)
 
-        # TODO check: 此处kernels由win_num*k_size**2拆开，win_num的维度是在k_size前面还是后面
-        # kernels:  win_num, out_c, in_c, k_size, k_size
-        kernels = self.proj_out(kernels).reshape(self.dim, self.win_num, self.kernel_size, self.kernel_size, self.dim).permute(1, 0, 4, 2, 3)
+        # kernels:  c, (win_num+1)*k_size**2, c
+        kernels = self.proj_out(kernels)
+        
+        # kernels:  (win_num+1)*c, c, k_size, k_size
+        kernels = kernels.reshape(self.dim, (self.win_num+1), self.kernel_size, self.kernel_size, self.dim).permute(1, 0, 4, 2, 3).reshape((self.win_num+1)*self.dim, self.dim, self.kernel_size, self.kernel_size)
 
-        ### 下面计算SELayer输出并重新进行卷积
-        # kernels:  win_num, out_c, in_c, k_size, k_size
-        # x_windows_origin:  win_num, bs, c, wh, ww
-        i = 0
-        x_windows_out = []
+        # kernels:  (win_num+1)*c, c, k_size, k_size
+        kernels = self.se(kernels)
 
-        for selayer in self.selayers:
-            # kernel:  out_c, in_c, k_size, k_size
-            kernel = selayer(kernels[i])
-            # x_window:  bs, c, wh, ww
-            x_window = F.conv2d(x_windows[i], weight=kernel, bias=None, stride=self.stride, padding=self.padding).unsqueeze(0)
 
-            # TODO check: 此处由1, bs*c, h, w变为1, bs, c, h, w的操作是否正确
-            # x_window:  1, bs, c, wh, ww
-            # x_window = x_window.view(B, self.dim, self.window_size, self.window_size).unsqueeze(0)
-            x_windows_out.append(x_window)
-            i = i + 1
+        ### 下面使用卷积核对原图进行卷积
+        # x:  b, c, h ,w
+        x = x.view(B, H, W, C).permute(0, 3, 1, 2)
 
-        # x_windows:  win_num, bs, c, wh, ww
-        x_windows = torch.cat(x_windows_out, 0)
+        # x:  b, (self.win_num+1)*c, h ,w
+        x = x.repeat(1, self.win_num+1, 1, 1)
 
-        # x:  bs, h*w, c
-        x = ka_window_reverse(x_windows, self.window_size, H, W)
+        # x:  b, (self.win_num+1)*c, h ,w
+        x = F.conv2d(x, weight=kernels, bias=None, stride=self.stride, padding=self.padding, groups=self.win_num+1)
+
+        # x:  b, c, h ,w
+        x = self.fusion(x)
+
+        # x:  b, h*w, c
+        x = x.permute(0, 2, 3, 1).reshape(B, H*W, C)
 
         return x
 
@@ -318,12 +334,12 @@ class Window_Attention(nn.Module):
             qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
-        self.norm1 = norm_layer(dim//2)
+        self.norm1 = norm_layer(dim)
         self.norm2 = norm_layer(dim)
         mlp_hidden_dim = int(dim * mlp_ratio)
         self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop)
 
-    def forward(self, H, W, x):
+    def forward(self,H, W, x):
         x = rearrange(x, 'B C H W -> B (H W) C')
         B, L, C = x.shape
         assert L == H * W, "input feature has wrong size"
@@ -331,14 +347,11 @@ class Window_Attention(nn.Module):
         shortcut = x
 
         x = x.view(B, H, W, C)
-        
+        x = self.norm1(x)
 
         x_wa, x_ka = x.chunk(2, dim=-1)
         x_ka = x_ka.view(B, H*W, C//2)
         x_ka = self.KernelAttention(x_ka)
-
-
-        x_wa = self.norm1(x_wa)
 
         # partition windows
         x_windows = window_partition(x_wa, self.window_size)  # nW*B, window_size, window_size, C/2
