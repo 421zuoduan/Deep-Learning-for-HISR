@@ -183,7 +183,6 @@ class KernelAttention(nn.Module):
         self.scale = qk_scale or (dim//num_heads) ** (-0.5)
         self.window_size = int(input_resolution // sqrt(ka_win_num))
 
-        self.norm = nn.LayerNorm(dim)
         self.num_layers = self.win_num
         self.convlayer = ConvLayer(dim, ka_win_num, kernel_size, stride, padding)
         self.se = SELayer_KA(dim)
@@ -193,8 +192,7 @@ class KernelAttention(nn.Module):
         self.softmax = nn.Softmax(dim=-1)
         self.proj_drop = nn.Dropout(proj_drop)
         self.proj_out = nn.Linear(self.dim, self.dim)
-
-        self.layernorm = nn.LayerNorm(dim)
+        self.fusion = nn.Conv2d(self.win_num*self.dim, self.dim, kernel_size=1, stride=1, padding=0)
 
 
     def forward(self, x):
@@ -244,11 +242,20 @@ class KernelAttention(nn.Module):
 
 
         ### 自注意力计算后的卷积核与输入特征计算卷积
-        # x_windows:  bs, win_num*c, wh, ww
-        x_windows = F.conv2d(x_windows, kernels, stride=self.stride, padding=self.padding, groups=self.win_num)
+        # x:  bs, c, h, w
+        x = x.reshape(B, H, W, C).permute(0, 3, 1, 2)
+
+        # x:  bs, win_num*c, h, w
+        x = x.repeat(1, self.win_num, 1, 1)
+
+        # x:  bs, win_num*c, h, w
+        x = F.conv2d(x, kernels, stride=self.stride, padding=self.padding, groups=self.win_num)
+
+        # x:  bs, c, h, w
+        x = self.fusion(x)
 
         # x:  bs, h*w, c
-        x = ka_window_reverse(x_windows, self.window_size, H, W)
+        x = x.permute(0, 2, 3, 1).reshape(B, H*W, C)
 
         return x
 

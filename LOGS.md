@@ -10,8 +10,8 @@
 双分支结构：
 
 * BDT_kernelattentionv2：KernelAttention训练时保持窗口数量不变，无法利用金字塔结构的感受野变化的信息
-* [code wrong] BDT_kernelattentionv4：基于v2，KernelAttention去掉了结尾的shortcut和norm。partition维度出错
-* [code wrong] BDT_kernelattentionv6：基于v4，v4中有partition处代码写错了，reverse没改，remake吧:(。重写还是有错
+* [code error] BDT_kernelattentionv4：基于v2，KernelAttention去掉了结尾的shortcut和norm。partition维度出错
+* [code error] BDT_kernelattentionv6：基于v4，v4中有partition处代码写错了，reverse没改，remake吧:(。重写还是有错
 * BDT_kernelattentionv7：基于v4，v4中有reverse改了，partition没改，哥们你真不细心啊。改了重新跑
 * BDT_kernelattentionv8：基于v7，改变KernelAttention里的窗口数均为16
 
@@ -35,11 +35,12 @@ module放在stage最后:
 目前先做双分支吧
 * PSRT_noshuffle：把shuffle都变成普通的Swin Block
 * PSRT_KAv1_noshuffle：卷积核由池化生成，自注意力计算后去卷全图，，但是是新写法
-* PSRT_KAv2_noshuffle：把卷局部的KA放进noshuffle的PSRT中，没有for
+* [code error] PSRT_KAv2_noshuffle：把卷局部的KA放进noshuffle的PSRT中，没有for。KAv2的代码有错误，一个维度转换有问题；需要注意，没有for会比有for少三个SE，
 * PSRT_KAv3_noshuffle：卷局部的KA，有for
 * PSRT_KAv4_noshuffle：卷局部、卷全局进行fusion，有for
 * PSRT_KAv5_noshuffle：局部生成kernel，kernel聚合成global kernel，只用global kernel与全图卷积
 * PSRT_KAv6_noshuffle：局部生成kernel，kernel聚合成global kernel，窗口核和全局核各卷全局，然后fusion
+* PSRT_KAv7_noshuffle：基于KAv2和KAv6，尝试解决了维度转换的错误，SE的参数变成多卷积核共享。局部kernel计算注意力后卷全局，但没有global kernel
 
 
 * PSRT_KAv....._noshuffle：去掉了Norm，（没有写）
@@ -90,13 +91,14 @@ PSRT设置bs=32，lr=1e-4，embed_dim=48
 |PSRT(embed_Dim=48)|2.2407495|2.4452974|50.0313946|0.538 M|6号机|20231011|
 |PSRT_kernelattentionv5|2.2799347|3.8122486|49.5119861|0.665 M|2号机 UDL|20231015|
 |PSRT_KAv1(embed_Dim=48)|2.2844245|2.5096108|49.8647584|0.665 M|2号机 UDL|20231012|
-|PSRT_noshuffle|2.1245276|2.2309420|50.4692293|0.538 M|6号机|20231013|
+|PSRT_noshuffle|2.1245276|2.2309420|50.4692293|0.538 M|6号机 UDLv2|20231013|
 |PSRT_KAv1_noshuffle|2.2294778|1.3029419|50.7237681|0.779 M|6号机 UDL|20231017|
 |PSRT_KAv2_noshuffle|2.2752936|2.0677896|49.6950313|0.854 M|6号机|20231013|
 |PSRT_KAv3_noshuffle|2.2756061|1.7408064|50.1445174|0.918 M|2号机 UDLv2|20231015|
 |PSRT_KAv4_noshuffle|2.1899021|2.3440072|50.2209833|1.002 M|2号机 UDLv2|20231018|
 |PSRT_KAv5_noshuffle|2.1078129|2.2032974|50.5076604|1.002 M|2号机 UDL|20231019|
-|PSRT_KAv6_noshuffle||||1.055 M|2号机 UDL||
+|PSRT_KAv6_noshuffle||||1.055 M|2号机 UDL|20231022|
+|PSRT_KAv7_noshuffle||||0.894 M|6号机 UDLv2|20231022|
 
 
 
