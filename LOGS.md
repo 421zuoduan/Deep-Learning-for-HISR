@@ -39,10 +39,10 @@ module放在stage最后:
 * PSRT_KAv3_noshuffle：卷局部的KA，有for
 * PSRT_KAv4_noshuffle：卷局部、卷全局进行fusion，有for
 * PSRT_KAv5_noshuffle：局部生成kernel，kernel聚合成global kernel，只用global kernel与全图卷积
-* PSRT_KAv6_noshuffle：局部生成kernel，kernel聚合成global kernel，只用global kernel与全图卷积
+* PSRT_KAv6_noshuffle：局部生成kernel，kernel聚合成global kernel，窗口核和全局核各卷全局，然后fusion
 
 
-* PSRT_KAv....._noshuffle：去掉了Norm，（代码仍需改进）
+* PSRT_KAv....._noshuffle：去掉了Norm，（没有写）
 * 
 * PSRT_kernelattentionv5：使用KA的旧代码进行改进（有for）
 * PSRT_KAv1：使用重构后的KA代码进行改进（没有for）
