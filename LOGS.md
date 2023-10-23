@@ -42,6 +42,7 @@ module放在stage最后:
 * PSRT_KAv6_noshuffle：局部生成kernel，kernel聚合成global kernel，窗口核和全局核各卷全局，然后fusion。使用for
 * PSRT_KAv7_noshuffle：基于KAv2和KAv6，尝试解决了维度转换的错误，SE的参数变成多卷积核共享。局部kernel计算注意力后卷全局，但没有global kernel
 * PSRT_KAv8_noshuffle：与KAv6思想相同，但是不使用for
+* PSRT_KAv9_noshuffle：基于KAv1，将linear暴力增加通道数的方法改为repeat。``TODO``:这里repeat后不是可学习参数吧
 
 
 * PSRT_KAv....._noshuffle：去掉了Norm，（没有写）
@@ -99,8 +100,11 @@ PSRT设置bs=32，lr=1e-4，embed_dim=48
 |PSRT_KAv4_noshuffle|2.1899021|2.3440072|50.2209833|1.002 M|2号机 UDLv2|20231018|
 |PSRT_KAv5_noshuffle|2.1078129|2.2032974|50.5076604|1.002 M|2号机 UDL|20231019|
 |PSRT_KAv6_noshuffle||||1.054 M|2号机 UDL|20231022|
-|PSRT_KAv7_noshuffle||||0.894 M|6号机 UDLv2|20231022|
-|PSRT_KAv8_noshuffle||||0.946 M|2号机 UDLv2|20231022|
+|PSRT_KAv7_noshuffle||||0.894 M|6号机 UDLv2(6太慢了) -> 2号机 UDLv3|20231022|
+|PSRT_KAv8_noshuffle|2.1751094|2.4212308|50.3579216|0.946 M|2号机 UDLv2|20231022|
+|PSRT_KAv9_noshuffle||||0.519 M|6号机 UDL|20231023|
+
+
 
 
 
