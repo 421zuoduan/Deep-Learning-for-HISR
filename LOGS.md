@@ -42,7 +42,7 @@ module放在stage最后:
 * PSRT_KAv6_noshuffle：局部生成kernel，kernel聚合成global kernel，窗口核和全局核各卷全局，然后fusion。使用for
 * PSRT_KAv7_noshuffle：基于KAv2和KAv6，尝试解决了维度转换的错误，SE的参数变成多卷积核共享。局部kernel计算注意力后卷全局，但没有global kernel
 * PSRT_KAv8_noshuffle：与KAv6思想相同，但是不使用for
-* PSRT_KAv9_noshuffle：基于KAv1，将linear暴力增加通道数的方法改为repeat。``TODO``:这里repeat后不是可学习参数吧
+* PSRT_KAv9_noshuffle：基于KAv1，生成卷积核增加c的维度的方法改为repeat，c**2->c\*c后进行一个参数为c*c的linear
 
 
 * PSRT_KAv....._noshuffle：去掉了Norm，（没有写）

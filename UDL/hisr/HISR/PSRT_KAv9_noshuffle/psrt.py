@@ -168,7 +168,8 @@ class KernelAttention(nn.Module):
         self.proj_drop = nn.Dropout(proj_drop)
         self.proj_out = nn.Linear(self.dim, self.dim)
 
-        self.concat_linear = nn.Linear(self.win_num*self.dim, self.dim)
+        self.kernels_linear = nn.Conv2d(self.dim, self.dim, kernel_size=1, stride=1, padding=0, groups=self.dim)
+        self.fusion = nn.Linear(self.win_num*self.dim, self.dim)
 
     def forward(self, x):
         """
@@ -185,7 +186,7 @@ class KernelAttention(nn.Module):
         kernels = self.pooling(x_windows)
         
         # kernels:  bs, win_num*k_size**2, c
-        kernels = kernels.reshape(B, self.win_num, self.dim, self.kernel_size**2).permute(0, 1, 3, 2).reshape(B, self.win_num*self.kernel_size**2, self.dim)
+        kernels = kernels.reshape(B, self.win_num, self.dim, self.kernel_size**2).transpose(3, 2).reshape(B, self.win_num*self.kernel_size**2, self.dim)
 
 
         ### 下面想要计算所有卷积核间的自注意力，再经过SE
@@ -217,15 +218,16 @@ class KernelAttention(nn.Module):
 
 
         ### 下面获取可用于卷积的卷积核参数
-        ### 使用.repeat提高通道维数
+        # 使用.repeat提高通道维数
         # kernels:  bs*win_num, c**2, k_size, k_size
         kernels = kernels.repeat(1, self.dim, 1, 1)
 
-        # kernels:  bs*win_num, k_size, k_size, c, c
-
         # TODO: 这里应该把经过全连接层后生成的两个c，哪个作为卷积核的通道呢？
         # kernels:  bs*win_num*c, c, k_size, k_size
-        kernels = kernels.reshape(B*self.win_num, self.dim, self.dim, self.kernel_size, self.kernel_size).reshape(B*self.win_num*self.dim, self.dim, self.kernel_size, self.kernel_size)
+        kernels = kernels.reshape(B*self.win_num*self.dim, self.dim, self.kernel_size, self.kernel_size)
+
+        # kernels:  bs*win_num*c, c, k_size, k_size
+        kernels = self.kernels_linear(kernels)
 
 
         ### 下面进行卷积操作
@@ -238,11 +240,11 @@ class KernelAttention(nn.Module):
         # x:  1, bs*win_num*c, h, w
         x = F.conv2d(x, kernels, stride=self.stride, padding=self.padding, groups=B*self.win_num)
 
-        # x:  bs, h*w, win_num*c 
+        # x:  bs, h*w, win_num*c
         x = x.reshape(B, self.win_num*self.dim, H*W).permute(0, 2, 1)
 
         # x:  bs, h*w, c
-        x = self.concat_linear(x)
+        x = self.fusion(x)
 
         return x
 
