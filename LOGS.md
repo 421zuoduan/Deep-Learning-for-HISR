@@ -107,6 +107,7 @@ PSRT设置bs=32，lr=1e-4，embed_dim=48
 |PSRT_KAv9_noshuffle||||0.519 M|6号机 UDL|20231023|
 |PSRT_KAv10_noshuffle||||0.894 M|2号机 UDL|20231024|
 |PSRT_KAv11_noshuffle||||0.881 M|2号机 UDLv2|20231024|
+|PSRT_KAv11_noshuffle||||0.851 M||20231024|
 
 
 

@@ -185,8 +185,8 @@ class KernelAttention(nn.Module):
 
         self.num_layers = self.win_num
         self.convlayer = ConvLayer(dim, ka_win_num, kernel_size, stride, padding)
-        self.kernel_linear = nn.Conv2d(self.win_num*self.dim, self.dim, kernel_size=1, stride=1, padding=0)
-        self.fusion = nn.Conv2d((self.win_num+1)*self.dim, self.dim, kernel_size=1, stride=1, padding=0)
+        self.se = SELayer_KA(dim)
+        self.fusion = nn.Conv2d(self.win_num*self.dim, self.dim, kernel_size=1, stride=1, padding=0)
 
 
     def forward(self, x):
@@ -202,30 +202,21 @@ class KernelAttention(nn.Module):
         # kernels:  win_num*c, c, k_size, k_size
         _, kernels = self.convlayer(x_windows)
 
-        # kernels:  c, win_num*c, k_size, k_size
-        kernels = kernels.reshape(self.win_num, self.dim, self.dim, self.kernel_size, self.kernel_size).transpose(0, 1).reshape(self.dim, self.win_num*self.dim, self.kernel_size, self.kernel_size)
+
+        ### 卷积核经过SE
+        # kernels:  win_num*c, c, k_size, k_size
+        kernels = self.se(kernels)
 
 
-        ### 生成global_kernel，并与kernels连接在一起
-        # global_kernel:  c, c, k_size, k_size
-        global_kernel = self.kernel_linear(kernels)
-
-        # kernels:  c, (win_num+1)*c, k_size, k_size
-        kernels = torch.cat([kernels, global_kernel], dim=1)
-
-        # kernels:  (win_num+1)*c, c, k_size, k_size
-        kernels = kernels.reshape(self.dim, self.win_num+1, self.dim, self.kernel_size, self.kernel_size).transpose(0, 1).reshape((self.win_num+1)*self.dim, self.dim, self.kernel_size, self.kernel_size)
-
-
-        ### 卷积核与输入特征计算卷积
+        ### SE计算后的卷积核与输入特征计算卷积
         # x:  bs, c, h, w
         x = x.reshape(B, H, W, C).permute(0, 3, 1, 2)
 
-        # x:  bs, (win_num+1)*c, h, w
-        x = x.repeat(1, self.win_num+1, 1, 1)
+        # x:  bs, win_num*c, h, w
+        x = x.repeat(1, self.win_num, 1, 1)
 
-        # x:  bs, (win_num+1)*c, h, w
-        x = F.conv2d(x, kernels, stride=self.stride, padding=self.padding, groups=self.win_num+1)
+        # x:  bs, win_num*c, h, w
+        x = F.conv2d(x, kernels, stride=self.stride, padding=self.padding, groups=self.win_num)
 
         # x:  bs, c, h, w
         x = self.fusion(x)
