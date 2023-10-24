@@ -33,16 +33,18 @@ module放在stage最后:
 ### 基于PSRT的改进
 
 目前先做双分支吧
-* PSRT_noshuffle：把shuffle都变成普通的Swin Block
-* PSRT_KAv1_noshuffle：卷积核由池化生成，自注意力计算后去卷全图，，但是是新写法
-* [code error] PSRT_KAv2_noshuffle：把卷局部的KA放进noshuffle的PSRT中，没有for。KAv2的代码有错误，一个维度转换有问题；需要注意，没有for会比有for少三个SE，
-* PSRT_KAv3_noshuffle：卷局部的KA，有for
-* PSRT_KAv4_noshuffle：卷局部、卷全局进行fusion，有for
-* PSRT_KAv5_noshuffle：局部生成kernel，kernel聚合成global kernel，只用global kernel与全图卷积
-* PSRT_KAv6_noshuffle：局部生成kernel，kernel聚合成global kernel，窗口核和全局核各卷全局，然后fusion。使用for
-* PSRT_KAv7_noshuffle：基于KAv2和KAv6，尝试解决了维度转换的错误，SE的参数变成多卷积核共享。局部kernel计算注意力后卷全局，但没有global kernel
-* PSRT_KAv8_noshuffle：与KAv6思想相同，但是不使用for
+* **PSRT_noshuffle**：把PSRT的shuffle都变成普通的Swin Block
+* **PSRT_KAv1_noshuffle**：卷积核由池化生成，自注意力、SE计算后去卷全图，卷积核暴力升维（c->c\*\*2），与原图重新计算卷积，1*1卷积融合得到的四张图。并行
+* [code error] PSRT_KAv2_noshuffle：把卷窗口的KA放进noshuffle的PSRT中，并行。KAv2的代码有错误，一个维度转换有问题；需要注意，没有for会比有for少三个SE，SE的参数是共享的
+* PSRT_KAv3_noshuffle：卷窗口的KA，串行
+* PSRT_KAv4_noshuffle：卷窗口的KA，窗口生成卷积核融合成一个全局卷积核（记为global kernel，1\*1卷积实现），窗口卷积核与窗口卷积，全局卷积核与全图卷积，融合得到的五张图为一张图（1*1卷积）。串行
+* **PSRT_KAv5_noshuffle**：卷窗口的KA，kernels融合成global kernel，只用global kernel与全图卷积。串行
+* PSRT_KAv6_noshuffle：卷窗口的KA，kernels经过自注意力和se后融合成global kernel，窗口核和全局核都卷全局，然后fusion。串行
+* **PSRT_KAv7_noshuffle**：基于KAv2和KAv6，尝试解决了维度转换的错误，SE的参数依然是多卷积核共享，无global kernel。窗口生成的卷积核与全图计算卷积，然后融合
+* PSRT_KAv8_noshuffle：与KAv6思想相同，se的参数是窗口核和全局核共享
 * PSRT_KAv9_noshuffle：基于KAv1，生成卷积核增加c的维度的方法改为repeat，c**2->c\*c后进行一个参数为c*c的linear
+* PSRT_KAv10_noshuffle：基于KAv7，卷全图，不加SE模块，无global kernel。并行
+* PSRT_KAv11_noshuffle：基于KAv5和KAv7，卷全图，卷积核没有SA和SE，有global kernel，。并行
 
 
 * PSRT_KAv....._noshuffle：去掉了Norm，（没有写）
@@ -99,12 +101,12 @@ PSRT设置bs=32，lr=1e-4，embed_dim=48
 |PSRT_KAv3_noshuffle|2.2756061|1.7408064|50.1445174|0.918 M|2号机 UDLv2|20231015|
 |PSRT_KAv4_noshuffle|2.1899021|2.3440072|50.2209833|1.002 M|2号机 UDLv2|20231018|
 |PSRT_KAv5_noshuffle|2.1078129|2.2032974|50.5076604|1.002 M|2号机 UDL|20231019|
-|PSRT_KAv6_noshuffle||||1.054 M|2号机 UDL|20231022|
-|PSRT_KAv7_noshuffle||||0.894 M|6号机 UDLv2(6太慢了) -> 2号机 UDLv3|20231022|
+|PSRT_KAv6_noshuffle|4.7182505|3.9199647|40.0239899|1.054 M|2号机 UDL|20231022 怀疑过拟合了，2000epoch时，PSNR只有40；1999epoch时，PSNR有50.26；1998epoch时，PSNR有50.43；1500epoch时，PSNR有50.24|
+|PSRT_KAv7_noshuffle|2.1232879|2.1154806|50.4642246|0.894 M|6号机 UDLv2(6太慢了) -> 2号机 UDLv3|20231022|
 |PSRT_KAv8_noshuffle|2.1751094|2.4212308|50.3579216|0.946 M|2号机 UDLv2|20231022|
 |PSRT_KAv9_noshuffle||||0.519 M|6号机 UDL|20231023|
-
-
+|PSRT_KAv10_noshuffle||||0.894 M|2号机 UDL|20231024|
+|PSRT_KAv11_noshuffle||||0.881 M|2号机 UDLv2|20231024|
 
 
 

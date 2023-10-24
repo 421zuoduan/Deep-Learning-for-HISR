@@ -34,8 +34,12 @@ from UDL.hisr.HISR.PSRT.model_PSRT import build
 # from UDL.hisr.HISR.PSRT_KAv7_noshuffle.model_PSRT import build
 # from UDL.hisr.HISR.PSRT_KAv8_noshuffle.option_hisr_PSRT import cfg as args
 # from UDL.hisr.HISR.PSRT_KAv8_noshuffle.model_PSRT import build
-from UDL.hisr.HISR.PSRT_KAv9_noshuffle.option_hisr_PSRT import cfg as args
-from UDL.hisr.HISR.PSRT_KAv9_noshuffle.model_PSRT import build
+# from UDL.hisr.HISR.PSRT_KAv9_noshuffle.option_hisr_PSRT import cfg as args
+# from UDL.hisr.HISR.PSRT_KAv9_noshuffle.model_PSRT import build
+# from UDL.hisr.HISR.PSRT_KAv10_noshuffle.option_hisr_PSRT import cfg as args
+# from UDL.hisr.HISR.PSRT_KAv10_noshuffle.model_PSRT import build
+from UDL.hisr.HISR.PSRT_KAv11_noshuffle.option_hisr_PSRT import cfg as args
+from UDL.hisr.HISR.PSRT_KAv11_noshuffle.model_PSRT import build
 
 
 
