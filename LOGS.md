@@ -45,7 +45,7 @@ module放在stage最后:
 * PSRT_KAv9_noshuffle：基于KAv1，生成卷积核增加c的维度的方法改为repeat，c**2->c\*c后进行一个参数为c*c的linear
 * PSRT_KAv10_noshuffle：基于KAv7，卷全图，不加SE模块，无global kernel。并行
 * PSRT_KAv11_noshuffle：基于KAv5和KAv7，卷全图，卷积核没有SA和SE，有global kernel，。并行
-
+* PSRT_KAv12_noshuffle：基于KAv7，卷全图，不加SA，无global kernel。并行
 
 * PSRT_KAv....._noshuffle：去掉了Norm，（没有写）
 * 
@@ -104,10 +104,7 @@ PSRT设置bs=32，lr=1e-4，embed_dim=48
 |PSRT_KAv6_noshuffle|4.7182505|3.9199647|40.0239899|1.054 M|2号机 UDL|20231022 怀疑过拟合了，2000epoch时，PSNR只有40；1999epoch时，PSNR有50.26；1998epoch时，PSNR有50.43；1500epoch时，PSNR有50.24|
 |PSRT_KAv7_noshuffle|2.1232879|2.1154806|50.4642246|0.894 M|6号机 UDLv2(6太慢了) -> 2号机 UDLv3|20231022|
 |PSRT_KAv8_noshuffle|2.1751094|2.4212308|50.3579216|0.946 M|2号机 UDLv2|20231022|
-|PSRT_KAv9_noshuffle||||0.519 M|6号机 UDL|20231023|
+|PSRT_KAv9_noshuffle|2.2132997|3.2366958|50.0673282|0.519 M|6号机 UDL|20231023|
 |PSRT_KAv10_noshuffle||||0.894 M|2号机 UDL|20231024|
-|PSRT_KAv11_noshuffle||||0.881 M|2号机 UDLv2|20231024|
-|PSRT_KAv11_noshuffle||||0.851 M||20231024|
-
-
-
+|PSRT_KAv11_noshuffle|2.1693590|1.4011621|50.8749442|0.881 M|2号机 UDLv2|20231024|
+|PSRT_KAv12_noshuffle||||0.851 M|||
