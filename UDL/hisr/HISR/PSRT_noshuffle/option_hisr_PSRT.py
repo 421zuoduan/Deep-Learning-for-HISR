@@ -15,14 +15,14 @@ parser.add_argument('--name', default='PSRT_noshuffle', type=str)
 parser.add_argument('--test_epoch', default='2001', type=int)
 
 # model_path = ''
-model_path = f'{root_dir}/results/{cfg.task}/PSRTv1/cave_x4/Test/model_2023-08-12-11-14/1985.pth.tar'
+model_path = r'UDL\results\hisr\PSRT_noshuffle\cave_x4\AdaTrans\Test\model_2023-10-29-01-07\307.pth.tar'
 
 parser.add_argument('--out_dir', metavar='DIR', default=f'{root_dir}/results/{cfg.task}',
                     help='path to save model')
 # * Training
 parser.add_argument('--lr', default=1e-4, type=float)
 parser.add_argument('--lr_scheduler', default=True, type=bool)
-parser.add_argument('-samples_per_gpu', default=16, type=int,
+parser.add_argument('-samples_per_gpu', default=24, type=int,
                     metavar='N', help='mini-batch size (default: 256)')
 parser.add_argument('--print-freq', '-p', default=20, type=int,
                     metavar='N', help='print frequency (default: 10)')

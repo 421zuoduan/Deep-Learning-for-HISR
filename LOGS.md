@@ -46,6 +46,7 @@ module放在stage最后:
 * PSRT_KAv10_noshuffle：基于KAv7，卷全图，不加SE模块，无global kernel。并行
 * PSRT_KAv11_noshuffle：基于KAv5和KAv7，卷全图，卷积核没有SA和SE，有global kernel，。并行
 * PSRT_KAv12_noshuffle：基于KAv7，卷全图，不加SA，无global kernel。并行
+* PSRT_KAv13_noshuffle：基于KAv11，卷全图，不加SA，无global kernel。并行，加GELU
 
 * PSRT_KAv....._noshuffle：去掉了Norm，（没有写）
 * 
