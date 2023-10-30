@@ -47,9 +47,9 @@ module放在stage最后:
 * PSRT_KAv11_noshuffle：基于KAv5和KAv7，卷全图，卷积核没有SA和SE，有global kernel，。并行
 * PSRT_KAv12_noshuffle：基于KAv7，卷全图，不加SA，无global kernel。并行
 * PSRT_KAv13_noshuffle：基于KAv11，卷全图，不加SA，无global kernel。并行，加GELU
+* PSRT_KAv14_noshuffle：基于KAv11，SE的激活函数改为GELU；SE放在SA前面；都和reverse后的feature map进行第二次卷积；global kernel由未进行注意力计算的卷积核生成
 
-* PSRT_KAv....._noshuffle：去掉了Norm，（没有写）
-* 
+
 * PSRT_kernelattentionv5：使用KA的旧代码进行改进（有for）
 * PSRT_KAv1：使用重构后的KA代码进行改进（没有for）
 
@@ -109,3 +109,5 @@ PSRT设置bs=32，lr=1e-4，embed_dim=48
 |PSRT_KAv10_noshuffle||||0.894 M|2号机 UDL|20231024|
 |PSRT_KAv11_noshuffle|2.1693590|1.4011621|50.8749442|0.881 M|2号机 UDLv2|20231024|
 |PSRT_KAv12_noshuffle||||0.851 M|||
+|PSRT_KAv13_noshuffle|2.1941420|2.4338021|50.1611231|0.894 M|6号机 UDLv2|20231028|
+
