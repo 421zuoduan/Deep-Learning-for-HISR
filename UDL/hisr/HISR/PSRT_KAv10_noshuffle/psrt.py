@@ -212,7 +212,7 @@ class KernelAttention(nn.Module):
         kernels = kernels.reshape(kernels.shape[0], kernels.shape[1], -1).permute(0, 2, 1)
 
 
-        ### 下面想要计算所有卷积核间的自注意力，再经过SE
+        ### 下面想要计算所有卷积核间的自注意力
         # kernels:  c, win_num*k_size**2, c
         kernels = kernels.reshape(self.win_num, self.dim, self.kernel_size**2, self.dim).permute(1, 0, 2, 3).reshape(self.dim, -1, self.dim)
 

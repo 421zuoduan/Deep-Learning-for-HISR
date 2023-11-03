@@ -40,14 +40,14 @@ from UDL.Basis.auxiliary import set_random_seed
 # from UDL.hisr.HISR.PSRT_KAv10_noshuffle.model_PSRT import build
 # from UDL.hisr.HISR.PSRT_KAv11_noshuffle.option_hisr_PSRT import cfg as args
 # from UDL.hisr.HISR.PSRT_KAv11_noshuffle.model_PSRT import build
-# from UDL.hisr.HISR.PSRT_KAv12_noshuffle.option_hisr_PSRT import cfg as args
-# from UDL.hisr.HISR.PSRT_KAv12_noshuffle.model_PSRT import build
+from UDL.hisr.HISR.PSRT_KAv12_noshuffle.option_hisr_PSRT import cfg as args
+from UDL.hisr.HISR.PSRT_KAv12_noshuffle.model_PSRT import build
 # from UDL.hisr.HISR.PSRT_KAv13_noshuffle.option_hisr_PSRT import cfg as args
 # from UDL.hisr.HISR.PSRT_KAv13_noshuffle.model_PSRT import build
 # from UDL.hisr.HISR.PSRT_KAv14_noshuffle.option_hisr_PSRT import cfg as args
 # from UDL.hisr.HISR.PSRT_KAv14_noshuffle.model_PSRT import build
-from UDL.hisr.HISR.PSRT_KAv15_noshuffle.option_hisr_PSRT import cfg as args
-from UDL.hisr.HISR.PSRT_KAv15_noshuffle.model_PSRT import build
+# from UDL.hisr.HISR.PSRT_KAv15_noshuffle.option_hisr_PSRT import cfg as args
+# from UDL.hisr.HISR.PSRT_KAv15_noshuffle.model_PSRT import build
 
 
 

@@ -15,7 +15,7 @@ parser.add_argument('--name', default='PSRT_noshuffle', type=str)
 parser.add_argument('--test_epoch', default='2001', type=int)
 
 # model_path = ''
-model_path = r'UDL\results\hisr\PSRT_noshuffle\cave_x4\AdaTrans\Test\model_2023-10-29-13-20\1054.pth.tar'
+model_path = r'UDL\results\hisr\PSRT_noshuffle\cave_x4\AdaTrans\Test\model_2023-10-31-00-37\1400.pth.tar'
 
 parser.add_argument('--out_dir', metavar='DIR', default=f'{root_dir}/results/{cfg.task}',
                     help='path to save model')
