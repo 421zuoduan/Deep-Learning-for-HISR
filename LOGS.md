@@ -43,9 +43,10 @@ module放在stage最后:
 * **PSRT_KAv7_noshuffle**：基于KAv2和KAv6，尝试解决了维度转换的错误，SE的参数依然是多卷积核共享，无global kernel。窗口生成的卷积核与全图计算卷积，然后融合
 * PSRT_KAv8_noshuffle：与KAv6思想相同，se的参数是窗口核和全局核共享
 * PSRT_KAv9_noshuffle：基于KAv1，生成卷积核增加c的维度的方法改为repeat，c**2->c\*c后进行一个参数为c*c的linear
-* PSRT_KAv10_noshuffle：基于KAv7，卷全图，不加SE模块，无global kernel。并行
-* PSRT_KAv11_noshuffle：基于KAv5和KAv7，卷全图，卷积核没有SA和SE，有global kernel。并行
-* PSRT_KAv12_noshuffle：基于KAv10和KAv11，卷全图，不加SE，有global kernel。并行
+* [code error] PSRT_KAv10_noshuffle：基于KAv7，卷全图，不加SE模块，无global kernel。并行
+* PSRT_KAv10_noshuffle：基于KAv7，卷全图，有SA无SE，无global kernel。并行
+* PSRT_KAv11_noshuffle：基于KAv5和KAv7，卷全图，没有SA和SE，有global kernel。并行
+* PSRT_KAv12_noshuffle：基于KAv10和KAv11，卷全图，有SA无SE，有global kernel。并行
 * PSRT_KAv13_noshuffle：基于KAv11，卷全图，不加SA，无global kernel。并行，加GELU
 * PSRT_KAv14_noshuffle：基于KAv11，SE的激活函数改为GELU；SE放在SA前面；都和reverse后的feature map进行第二次卷积；global kernel由未进行注意力计算的卷积核生成
 * PSRT_KAv15_noshuffle：基于KAv14，SE的激活函数改为GELU；SE放在SA前面；都和原图进行第二次卷积；global kernel由未进行注意力计算的卷积核生成
@@ -107,8 +108,12 @@ PSRT设置bs=32，lr=1e-4，embed_dim=48
 |PSRT_KAv7_noshuffle|2.1232879|2.1154806|50.4642246|0.894 M|6号机 UDLv2(6太慢了) -> 2号机 UDLv3|20231022|
 |PSRT_KAv8_noshuffle|2.1751094|2.4212308|50.3579216|0.946 M|2号机 UDLv2|20231022|
 |PSRT_KAv9_noshuffle|2.2132997|3.2366958|50.0673282|0.519 M|6号机 UDL|20231023|
-|PSRT_KAv10_noshuffle|2.1785368|1.4475574|50.8828777|0.894 M|2号机 UDL|20231024|
+|PSRT_KAv10_noshuffle|2.1785368|1.4475574|50.8828777|0.894 M|2号机 UDL error |20231024|
+|PSRT_KAv10_noshuffle||||0.894 M|2号机 UDLv2 again|20231103|
 |PSRT_KAv11_noshuffle|2.1693590|1.4011621|50.8749442|0.881 M|2号机 UDLv2|20231024|
-|PSRT_KAv12_noshuffle||||0.851 M|||
+|PSRT_KAv12_noshuffle||||0.851 M|2号机 UDL|20231103|
 |PSRT_KAv13_noshuffle|2.1941420|2.4338021|50.1611231|0.894 M|6号机 UDLv2|20231028|
+|PSRT_KAv14_noshuffle||||0.851 M|||
+|PSRT_KAv15_noshuffle||||0.851 M|||
+|PSRT_KAv16_noshuffle||||0.851 M|2号机 UDLv3|20231103|
 

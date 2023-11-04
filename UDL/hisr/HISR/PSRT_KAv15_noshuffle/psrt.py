@@ -129,7 +129,7 @@ class SELayer_KA(nn.Module):
         super().__init__()
         self.se = nn.Sequential(nn.AdaptiveAvgPool2d((1, 1)),
                                 nn.Conv2d(channel, channel // 16 if channel >= 64 else channel, kernel_size=1),
-                                nn.ReLU(),
+                                nn.GELU(),
                                 nn.Conv2d(channel // 16 if channel >= 64 else channel, channel, kernel_size=1),
                                 nn.Sigmoid(), )
 

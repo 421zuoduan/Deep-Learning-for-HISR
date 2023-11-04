@@ -140,16 +140,37 @@ class SELayer_KA(nn.Module):
     
 
 class ConvLayer(nn.Module):
-    def __init__(self, dim, win_num, kernel_size=3, stride=1, padding=1):
+    def __init__(self, dim, win_num, kernel_size=3, stride=1, padding=1, groups=4, k_in=False):
         super().__init__()
 
-        self.conv = nn.Conv2d(win_num*dim, win_num*dim, kernel_size=kernel_size, stride=stride, padding=padding, groups=win_num)
+        self.dim = dim
+        self.win_num = win_num
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+        self.groups = groups
+        if not k_in:
+            self.params = nn.Parameter(torch.randn(win_num*dim, dim, kernel_size, kernel_size), requires_grad=True)
+        else:
+            self.params = None
 
     def forward(self, x, kernels=None):
+        '''
+        x:  bs, win_num, wh, ww
+        kernels:  None
 
-        x = self.conv(x)
+        or
 
-        return x, self.conv.weight
+        x:  bs, win_num*c, h, w
+        kernels:  c*win_num, c, k_size, k_size
+        '''
+
+        if kernels is None:
+            x = F.conv2d(x, self.params, stride=self.stride, padding=self.padding, groups=self.groups)
+        else:
+            x = F.conv2d(x, kernels, stride=self.stride, padding=self.padding, groups=self.groups)
+
+        return x, self.params
 
 class KernelAttention(nn.Module):
     """
@@ -184,15 +205,11 @@ class KernelAttention(nn.Module):
         self.window_size = int(input_resolution // sqrt(ka_win_num))
 
         self.num_layers = self.win_num
-        self.convlayer = ConvLayer(dim, ka_win_num, kernel_size, stride, padding)
-        self.se = SELayer_KA(dim)
-        self.proj_qkv = nn.Linear(self.dim, self.dim*3, bias=qkv_bias)
-
-        self.attn_drop = nn.Dropout(attn_drop)
-        self.softmax = nn.Softmax(dim=-1)
-        self.proj_drop = nn.Dropout(proj_drop)
-        self.proj_out = nn.Linear(self.dim, self.dim)
-        self.fusion = nn.Conv2d(self.win_num*self.dim, self.dim, kernel_size=1, stride=1, padding=0)
+        self.convlayer1 = ConvLayer(dim, ka_win_num, kernel_size, stride, padding, groups=ka_win_num, k_in=False)
+        self.kernel_linear = nn.Conv2d(self.win_num*self.dim, self.dim, kernel_size=1, stride=1, padding=0)
+        self.se = SELayer_KA(self.dim)
+        self.convlayer2 = ConvLayer(dim, ka_win_num, kernel_size, stride, padding, groups=ka_win_num+1, k_in=True)
+        self.fusion = nn.Conv2d((self.win_num+1)*self.dim, self.dim, kernel_size=1, stride=1, padding=0)
 
 
     def forward(self, x):
@@ -206,50 +223,43 @@ class KernelAttention(nn.Module):
         x_windows = ka_window_partition(x, self.window_size)
 
         # kernels:  win_num*c, c, k_size, k_size
-        _, kernels = self.convlayer(x_windows)
+        _, kernels = self.convlayer1(x_windows)
 
-        # kernels:  win_num*c, k_size**2, c
-        kernels = kernels.reshape(kernels.shape[0], kernels.shape[1], -1).permute(0, 2, 1)
+        # kernels:  c, win_num*c, k_size, k_size
+        kernels = kernels.reshape(self.win_num, self.dim, self.dim, self.kernel_size, self.kernel_size).transpose(0, 1).reshape(self.dim, self.win_num*self.dim, self.kernel_size, self.kernel_size)
+        # kernels = kernels.reshape(self.dim, self.win_num*self.dim, self.kernel_size, self.kernel_size)
 
 
-        ### 下面想要计算所有卷积核间的自注意力
-        # kernels:  c, win_num*k_size**2, c
-        kernels = kernels.reshape(self.win_num, self.dim, self.kernel_size**2, self.dim).permute(1, 0, 2, 3).reshape(self.dim, -1, self.dim)
-
-        # kernels_qkv:  3, c, num_heads, win_num*k_size**2, c/num_heads
-        kernels_qkv = self.proj_qkv(kernels).reshape(self.dim, self.win_num*self.kernel_size**2, 3, self.num_heads, self.dim//self.num_heads).permute(2, 0, 3, 1, 4)
-
-        # c, num_heads, win_num*k_size**2, c/num_heads
-        kernels_q, kernels_k, kernels_v = kernels_qkv[0], kernels_qkv[1], kernels_qkv[2]
-        kernels_q = kernels_q * self.scale
-
-        # attn: c, num_heads, win_num*k_size**2, win_num*k_size**2
-        attn = (kernels_q @ kernels_k.transpose(-2, -1))
-        attn = self.softmax(attn)
-        attn = self.attn_drop(attn)
-
-        # kernels:  c, win_num*k_size**2, c
-        kernels = (attn @ kernels_v).transpose(1, 2).reshape(self.dim, self.win_num*self.kernel_size**2, self.dim)
-
-        # kernels:  c, win_num*k_size**2, c
-        kernels = self.proj_out(kernels)
+        ### 生成global_kernel，并与kernels连接在一起
+        # global_kernel:  c, c, k_size, k_size
+        global_kernel = self.kernel_linear(kernels)
 
         # kernels:  win_num*c, c, k_size, k_size
-        kernels = kernels.reshape(self.dim, self.win_num, self.kernel_size, self.kernel_size, self.dim).permute(1, 0, 4, 2, 3).reshape(self.win_num*self.dim, self.dim, self.kernel_size, self.kernel_size)
+        kernels = kernels.reshape(self.dim*self.win_num, self.dim, self.kernel_size, self.kernel_size)
 
-        # # kernels:  win_num*c, c, k_size, k_size
-        # kernels = kernels.reshape(self.win_num, self.dim, self.kernel_size, self.kernel_size, self.dim).permute(0, 1, 4, 2, 3).reshape(self.win_num*self.dim, self.dim, self.kernel_size, self.kernel_size)
+        # kernels:  win_num*c, c, k_size, k_size
+        kernels = self.se(kernels)
+
+        # kernels:  c, win_num*c, k_size, k_size
+        kernels = kernels.reshape(self.dim, self.win_num*self.dim, self.kernel_size, self.kernel_size)
+
+        # kernels:  c, (win_num+1)*c, k_size, k_size
+        kernels = torch.cat([kernels, global_kernel], dim=1)
+
+        # kernels:  (win_num+1)*c, c, k_size, k_size
+        kernels = kernels.reshape(self.dim, self.win_num+1, self.dim, self.kernel_size, self.kernel_size).transpose(0, 1).reshape((self.win_num+1)*self.dim, self.dim, self.kernel_size, self.kernel_size)
 
 
-        ### 自注意力计算后的卷积核与输入特征计算卷积
+        ### 卷积核与输入特征计算卷积
         # x:  bs, c, h, w
         x = x.reshape(B, H, W, C).permute(0, 3, 1, 2)
 
-        # x:  bs, win_num*c, h, w
-        x = x.repeat(1, self.win_num, 1, 1)
+        # x:  bs, (win_num+1)*c, h, w
+        x = x.repeat(1, self.win_num+1, 1, 1)
 
-        # x:  bs, win_num*c, h, w
-        x = F.conv2d(x, kernels, stride=self.stride, padding=self.padding, groups=self.win_num)
+        # x:  bs, (win_num+1)*c, h, w
+        x, _ = self.convlayer2(x, kernels)
+        # x = F.conv2d(x, kernels, stride=self.stride, padding=self.padding, groups=self.win_num+1)
 
         # x:  bs, c, h, w
         x = self.fusion(x)
