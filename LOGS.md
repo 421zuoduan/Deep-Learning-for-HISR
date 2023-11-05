@@ -50,6 +50,7 @@ module放在stage最后:
 * PSRT_KAv13_noshuffle：基于KAv11，卷全图，不加SA，无global kernel。并行，加GELU
 * PSRT_KAv14_noshuffle：基于KAv11，SE的激活函数改为GELU；SE放在SA前面；都和reverse后的feature map进行第二次卷积；global kernel由未进行注意力计算的卷积核生成
 * PSRT_KAv15_noshuffle：基于KAv14，SE的激活函数改为GELU；SE放在SA前面；都和原图进行第二次卷积；global kernel由未进行注意力计算的卷积核生成
+* PSRT_KAv16_noshuffle：基于KAv5和KAv7，SE的激活函数改为GELU；无SA有SE；都和原图进行第二次卷积；global kernel由未进行注意力计算的卷积核生成
 
 
 * PSRT_kernelattentionv5：使用KA的旧代码进行改进（有for）
@@ -109,11 +110,11 @@ PSRT设置bs=32，lr=1e-4，embed_dim=48
 |PSRT_KAv8_noshuffle|2.1751094|2.4212308|50.3579216|0.946 M|2号机 UDLv2|20231022|
 |PSRT_KAv9_noshuffle|2.2132997|3.2366958|50.0673282|0.519 M|6号机 UDL|20231023|
 |PSRT_KAv10_noshuffle|2.1785368|1.4475574|50.8828777|0.894 M|2号机 UDL error |20231024|
-|PSRT_KAv10_noshuffle||||0.894 M|2号机 UDLv2 again|20231103|
+|PSRT_KAv10_noshuffle|2.2156852|1.4317201|50.7399171|0.894 M|2号机 UDLv2 again|20231103|
 |PSRT_KAv11_noshuffle|2.1693590|1.4011621|50.8749442|0.881 M|2号机 UDLv2|20231024|
-|PSRT_KAv12_noshuffle||||0.851 M|2号机 UDL|20231103|
+|PSRT_KAv12_noshuffle|2.3742382|1.2469189|50.6505637|0.851 M|2号机 UDL|20231103|
 |PSRT_KAv13_noshuffle|2.1941420|2.4338021|50.1611231|0.894 M|6号机 UDLv2|20231028|
 |PSRT_KAv14_noshuffle||||0.851 M|||
 |PSRT_KAv15_noshuffle||||0.851 M|||
-|PSRT_KAv16_noshuffle||||0.851 M|2号机 UDLv3|20231103|
+|PSRT_KAv16_noshuffle||||0.851 M|2号机 UDLv3|20231103 / 20231105|
 
