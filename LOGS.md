@@ -51,6 +51,7 @@ module放在stage最后:
 * PSRT_KAv14_noshuffle：基于KAv11，SE的激活函数改为GELU；SE放在SA前面；都和reverse后的feature map进行第二次卷积；global kernel由未进行注意力计算的卷积核生成
 * PSRT_KAv15_noshuffle：基于KAv14，SE的激活函数改为GELU；SE放在SA前面；都和原图进行第二次卷积；global kernel由未进行注意力计算的卷积核生成
 * PSRT_KAv16_noshuffle：基于KAv5和KAv7，SE的激活函数改为GELU；无SA有SE；都和原图进行第二次卷积；global kernel由未进行注意力计算的卷积核生成
+* PSRT_KAv17_noshuffle：基于KAv7和KAv15；无SA和SE；都和原图进行第二次卷积；无global kernel；窗口卷积核赋权
 
 
 * PSRT_kernelattentionv5：使用KA的旧代码进行改进（有for）
@@ -116,6 +117,6 @@ PSRT设置bs=32，lr=1e-4，embed_dim=48
 |PSRT_KAv12_noshuffle|2.3742382|1.2469189|50.6505637|0.851 M|2号机 UDL|20231103|
 |PSRT_KAv13_noshuffle|2.1941420|2.4338021|50.1611231|0.894 M|6号机 UDLv2|20231028|
 |PSRT_KAv14_noshuffle||||0.851 M|||
-|PSRT_KAv15_noshuffle||||0.890 M|2号机 UDLv3|20231107|
+|PSRT_KAv15_noshuffle||||0.890 M|2号机 UDLv3|20231107 第2次实验改代码了，服务器是正确的|
 |PSRT_KAv16_noshuffle|2.3273963|1.2449526|50.4512170||2号机 UDLv3|20231103 / 20231105|
-|PSRT_KAv17_noshuffle|||||||
+|PSRT_KAv17_noshuffle||||0.828 M|2号机 UDL|20231107|
