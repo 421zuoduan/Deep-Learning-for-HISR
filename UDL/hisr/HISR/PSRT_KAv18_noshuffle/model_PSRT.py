@@ -1,13 +1,20 @@
 # -*- encoding: utf-8 -*-
+"""
+@File    : model_SR.py
+@Time    : 2021/12/2 17:02
+@Author  : Shangqi Deng
+@Email   : dengsq5856@126.com
+@Software: PyCharm
+"""
 import math
 
 import torch
 from torch import optim
 from UDL.Basis.criterion_metrics import *
+from UDL.hisr.HISR.PSRT_KAv11_noshuffle.psrt import *
 from UDL.pansharpening.common.evaluate import analysis_accu
 from UDL.Basis.module import PatchMergeModule
 from UDL.Basis.pytorch_msssim.cal_ssim import SSIM
-from UDL.hisr.HISR.Bidi.bidirection import *
 import torch.nn.functional as F
 
 def init_weights(*modules):
@@ -35,28 +42,25 @@ def init_w(*modules):
                 if m.bias is not None:
                     nn.init.constant_(m.bias, 0.0)
 
-
-class Bidinet(PatchMergeModule):
+class PSRTnet(PatchMergeModule):
     def __init__(self, args):
-        super(Bidinet, self).__init__()
+        super(PSRTnet, self).__init__()
         self.args = args
-        self.img_size = 512
-        # self.img_size = 64
+        self.img_size = 64
         self.in_channels = 31
-        self.embed_dim = 48  # w-msa
-        self.dim = 32  # w-xca
+        self.embed = 48
         self.conv = nn.Sequential(
-            nn.Conv2d(32, self.in_channels, 3, 1, 1), nn.LeakyReLU(0.2, True)
+            nn.Conv2d(self.embed, self.in_channels, 3, 1, 1), nn.LeakyReLU(0.2, True)
         )
-        self.t = Merge(img_size=self.img_size, patch_size=1, in_chans1=34, in_chans2=self.in_channels, embed_dim=self.embed_dim, num_heads1=[8, 8, 8],window_size=8,  mlp_ratio=4.,dim=self.dim,
-                 num_heads2=[8, 8, 8],  ffn_expansion_factor=2.66,  LayerNorm_type = 'WithBias', bias=False)
+        # self.w = Block(num=2, img_size=self.img_size, in_chans=34, embed_dim=32, head=8, win_size=2)
+        self.w = Block(out_num=2, inside_num=3, img_size=self.img_size, in_chans=34, embed_dim=self.embed, head=8, win_size=8)
         self.visual_corresponding_name = {}
         init_weights(self.conv)
-        init_w(self.t)
+        init_w(self.w)
         self.visual_corresponding_name['gt'] = 'result'
         self.visual_names = ['gt', 'result']
 
-    def forward(self, gt, rgb, lms, ms):
+    def forward(self, gt, rgb, lms):
         '''
         :param pan:
         :param ms:
@@ -65,24 +69,15 @@ class Bidinet(PatchMergeModule):
         self.rgb = rgb
         self.gt = gt
         self.lms = lms
-        self.ms = ms
         xt = torch.cat((self.lms, self.rgb), 1)  # Bx34X64x64
-
-        # # padding
-        # pad = 12
-        # xt = F.pad(xt, (pad, pad, pad, pad))
-        # self.lms = F.pad(self.lms, (pad, pad, pad, pad))
-        # self.ms = F.pad(self.ms, (pad//4, pad//4, pad//4, pad//4))
-
-        w_out = self.t(xt, self.ms)
-        # padding
-        self.result = w_out + self.lms
-        # self.result = self.result[:, :, pad:1000+pad, pad:1000+pad]
+        _, _, H, W = xt.shape
+        w_out = self.w(H, W, xt)
+        self.result = self.conv(w_out) + self.lms
 
         return self.result
 
     def name(self):
-        return ' net'
+        return ' PSRT'
 
     def train_step(self, batch, *args, **kwargs):
         gt, up, hsi, msi = batch['gt'].cuda(), \
@@ -90,7 +85,7 @@ class Bidinet(PatchMergeModule):
                            batch['lrhsi'].cuda(), \
                            batch['rgb'].cuda()
         # x = torch.cat((up, msi), 1)
-        sr = self(gt, msi, up, hsi)
+        sr = self(gt, msi, up)
         loss = self.criterion(sr, gt, *args, **kwargs)
         log_vars = {}
         with torch.no_grad():
@@ -99,24 +94,28 @@ class Bidinet(PatchMergeModule):
 
         return {'loss': loss , 'log_vars': log_vars}
 
-    def eval_step(self, batch, *args, **kwargs):
+    def eval_step(self, batch):
         gt, up, hsi, msi = batch['gt'].cuda(), \
                            batch['up'].cuda(), \
-                           batch['lrhsi'].cuda(), \
+                           batch['up'].cuda(), \
                            batch['rgb'].cuda()
-
-        sr1 = self.forward(gt, msi, up, hsi)
+        # batch['lrhsi'].cuda(), \
+        print(gt.shape)
+        print(up.shape)
+        print(hsi.shape)
+        print(msi.shape)
+        # print(msi.shape)
+        sr1 = self.forward(gt, msi, up)
+        # x = torch.cat((up, msi), 1)
+        # sr1 = self.forward_chop(x)
         with torch.no_grad():
             metrics = analysis_accu(gt[0].permute(1, 2, 0), sr1[0].permute(1, 2, 0), 4)
             metrics.update(metrics)
-
-
         return sr1, metrics
 
     def set_metrics(self, criterion, rgb_range=1.0):
         self.rgb_range = rgb_range
         self.criterion = criterion
-
 
 def build(args):
     scheduler = None
@@ -126,13 +125,13 @@ def build(args):
     loss1 = nn.L1Loss().cuda()
     loss2 = g_ssim.cuda()
     weight_dict = {'Loss': 1, 'ssim_loss': 0.1}
-    losses = {'Loss': loss1, 'ssim_loss':loss2}
+    losses = {'Loss': loss1, 'ssim_loss': loss2}
     criterion = SetCriterion(losses, weight_dict)
-    model = Bidinet(args).cuda()
+    model = PSRTnet(args).cuda()
     num_params = 0
-    for param in Bidinet(args).parameters():
+    for param in PSRTnet(args).parameters():
         num_params += param.numel()
-    print('[Network %s] Total number of parameters : %.3f M' % ('Bottleneck', num_params / 1e6))
+    print('[Network %s] Total number of parameters : %.3f M' % ('PSRT', num_params / 1e6))
     model.set_metrics(criterion)
     optimizer = optim.AdamW(model.parameters(), lr=args.lr, weight_decay=1e-4)  ## optimizer 1: Adam
 

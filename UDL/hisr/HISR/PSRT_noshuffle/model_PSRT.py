@@ -46,7 +46,7 @@ class PSRTnet(PatchMergeModule):
     def __init__(self, args):
         super(PSRTnet, self).__init__()
         self.args = args
-        self.img_size = 128
+        self.img_size = 64
         self.in_channels = 31
         self.embed = 48
         self.conv = nn.Sequential(
@@ -100,10 +100,10 @@ class PSRTnet(PatchMergeModule):
                            batch['up'].cuda(), \
                            batch['rgb'].cuda()
         # batch['lrhsi'].cuda(), \
-        print(gt.shape)
-        print(up.shape)
-        print(hsi.shape)
-        print(msi.shape)
+        # print(gt.shape)
+        # print(up.shape)
+        # print(hsi.shape)
+        # print(msi.shape)
         # print(msi.shape)
         sr1 = self.forward(gt, msi, up)
         # x = torch.cat((up, msi), 1)
