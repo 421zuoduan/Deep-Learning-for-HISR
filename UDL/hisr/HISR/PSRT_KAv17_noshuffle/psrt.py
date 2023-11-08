@@ -146,48 +146,51 @@ class WinKernel_Reweight(nn.Module):
         self.dim = dim
         self.win_num = win_num
         self.pooling = nn.AdaptiveAvgPool2d((1, 1))
-        self.downchannel = nn.Conv2d(dim, 1, kernel_size=1)
-        self.linear1 = nn.Conv2d(win_num, win_num, kernel_size=1)
-        self.relu = nn.ReLU()
-        self.linear2 = nn.Conv2d(win_num, win_num, kernel_size=1)
+        self.downchannel = nn.Conv2d(win_num*dim, win_num, kernel_size=1, groups=win_num)
+        self.linear1 = nn.Conv2d(win_num, win_num*4, kernel_size=1)
+        self.gelu = nn.GELU()
+        self.linear2 = nn.Conv2d(win_num*4, win_num, kernel_size=1)
         self.sigmoid = nn.Sigmoid()
 
-    def forward(self, x):
-        # x:  bs, win_num*c, h, w
-        B = x.shape[0]
-        H = x.shape[2]
-        W = x.shape[3]
+    def forward(self, kernels, windows):
+        """
+        kernels:  win_num*c, c, k ,k
+        windows:  bs, win_num*c, wh, ww
+        """
 
-        # x_tmp:  bs, win_num*c, h, w
-        x_tmp = self.pooling(x)
-        
-        # x:  bs, win_num*c, 1, 1
-        x_tmp = x_tmp.reshape(-1, self.dim, 1, 1)
+        B = windows.shape[0]
 
-        # x_tmp:  bs*win_num, 1, 1, 1
-        x_tmp = self.downchannel(x_tmp)
+        # win_weight:  bs, win_num*c, 1, 1
+        win_weight = self.pooling(windows)
 
-        # x:  bs, win_num, 1, 1
-        x_tmp = x_tmp.reshape(B, -1, 1, 1)
+        # win_weight:  bs, win_num, 1, 1
+        win_weight = self.downchannel(win_weight)
 
-        x_tmp = self.linear1(x_tmp)
-        x_tmp = self.relu(x_tmp)
-        x_tmp = self.linear2(x_tmp)
-        # weight:  bs, win_num, 1, 1, 1
-        weight = self.sigmoid(x_tmp).unsqueeze(-1)
+        win_weight = self.linear1(win_weight)
+        win_weight = win_weight.permute(0, 2, 3, 1).reshape(B, 1, -1)
+        win_weight = self.gelu(win_weight)
+        win_weight = win_weight.transpose(1, 2).reshape(B, -1, 1, 1)
+        win_weight = self.linear2(win_weight)
+        # weight:  bs, win_num, 1, 1, 1, 1
+        weight = self.sigmoid(win_weight).unsqueeze(-1).unsqueeze(-1)
 
-        # x:  bs, win_num, c, h, w
-        x = x.reshape(B, self.win_num, -1, H, W)
-        x = weight * x
+        # kernels:  1, win_num, c, c, k, k
+        kernels = kernels.reshape(self.win_num, self.dim, self.dim, kernels.shape[-2], kernels.shape[-1]).unsqueeze(0)
 
-        # x:  bs, win_num*c, h, w
-        x = x.reshape(B, -1, H, W)
+        # kernels:  bs, win_num, c, c, k, k
+        kernels = kernels.repeat(B, 1, 1, 1, 1, 1)
 
-        return x
+        # kernels:  bs, win_num, c, c, k, k
+        kernels = weight * kernels
+
+        # kernels:  bs*win_num*c, c, k, k
+        kernels = kernels.reshape(-1, self.dim, kernels.shape[-2], kernels.shape[-1])
+
+        return kernels
     
 
 class ConvLayer(nn.Module):
-    def __init__(self, dim, win_num, kernel_size=3, stride=1, padding=1, groups=4, k_in=False):
+    def __init__(self, dim, kernel_size=3, stride=1, padding=1, groups=4, win_num=4, k_in=False):
         super().__init__()
 
         self.dim = dim
@@ -201,9 +204,9 @@ class ConvLayer(nn.Module):
         else:
             self.params = None
 
-    def forward(self, x, kernels=None):
+    def forward(self, x, kernels=None, groups=None):
         '''
-        x:  bs, win_num, wh, ww
+        x:  bs, win_num*c, wh, ww
         kernels:  None
 
         or
@@ -215,9 +218,10 @@ class ConvLayer(nn.Module):
         if kernels is None:
             x = F.conv2d(x, self.params, stride=self.stride, padding=self.padding, groups=self.groups)
         else:
-            x = F.conv2d(x, kernels, stride=self.stride, padding=self.padding, groups=self.groups)
+            x = F.conv2d(x, kernels, stride=self.stride, padding=self.padding, groups=groups)
 
         return x, self.params
+
 
 class KernelAttention(nn.Module):
     """
@@ -252,12 +256,11 @@ class KernelAttention(nn.Module):
         self.window_size = int(input_resolution // sqrt(ka_win_num))
 
         self.num_layers = self.win_num
-        self.convlayer1 = ConvLayer(dim, ka_win_num, kernel_size, stride, padding, groups=ka_win_num, k_in=False)
+        self.convlayer1 = ConvLayer(dim, kernel_size, stride, padding, groups=ka_win_num, k_in=False)
         self.wink_reweight = WinKernel_Reweight(dim, win_num=ka_win_num)
-        # self.kernel_linear = nn.Conv2d(self.win_num*self.dim, self.dim, kernel_size=1, stride=1, padding=0)
-        # self.se = SELayer_KA(self.dim)
-        self.convlayer2 = ConvLayer(dim, ka_win_num, kernel_size, stride, padding, groups=ka_win_num, k_in=True)
-        self.fusion = nn.Conv2d(self.win_num*self.dim, self.dim, kernel_size=1, stride=1, padding=0)
+        self.gk_generation = nn.Conv2d(self.win_num*self.dim, self.dim, kernel_size=1, stride=1, padding=0)
+        self.convlayer2 = ConvLayer(dim, kernel_size, stride, padding, k_in=True)
+        self.fusion = nn.Conv2d((self.win_num+1)*self.dim, self.dim, kernel_size=1, stride=1, padding=0)
 
 
     def forward(self, x):
@@ -270,31 +273,54 @@ class KernelAttention(nn.Module):
         # x_windows:  bs, win_num*c, wh, ww
         x_windows = ka_window_partition(x, self.window_size)
 
+        # windows_conv1:  bs, win_num*c, wh, ww
         # kernels:  win_num*c, c, k_size, k_size
-        _, kernels = self.convlayer1(x_windows)
+        windows_conv1, kernels = self.convlayer1(x_windows)
 
         # kernels:  c, win_num*c, k_size, k_size
         kernels = kernels.reshape(self.win_num, self.dim, self.dim, self.kernel_size, self.kernel_size).transpose(0, 1).reshape(self.dim, self.win_num*self.dim, self.kernel_size, self.kernel_size)
-        # kernels = kernels.reshape(self.dim, self.win_num*self.dim, self.kernel_size, self.kernel_size)
 
-        ### 给窗口卷积核赋权        A1win1 + A2win2 + ... + A4win4
-        # kernels:  c, win_num*c, k_size, k_size
-        kernels = self.wink_reweight(kernels)
 
-        # kernels:  win_num*c, c, k_size, k_size
-        kernels = kernels.reshape(self.dim, self.win_num, self.dim, self.kernel_size, self.kernel_size).transpose(0, 1).reshape(self.win_num*self.dim, self.dim, self.kernel_size, self.kernel_size)
+        ### 给窗口卷积核赋权        A1win1 ... A4win4
+        # kernels:  bs*win_num*c, c, k_size, k_size
+        kernels = self.wink_reweight(kernels, windows_conv1)
+
+
+        ### 生成全局卷积核global kernel
+        # kernels:  bs*c, win_num*c, k_size, k_size
+        kernels = kernels.reshape(B, self.win_num, self.dim, self.dim, self.kernel_size, self.kernel_size).transpose(1, 2).reshape(B*self.dim, self.win_num*self.dim, self.kernel_size, self.kernel_size)
+
+        # global_kernel:  bs*c, c, k_size, k_size
+        global_kernel = self.gk_generation(kernels)
+
+        # global_kernel:  bs, 1, c, c, k_size, k_size
+        global_kernel = global_kernel.reshape(B, self.dim, self.dim, self.kernel_size, self.kernel_size).unsqueeze(1)
+
+        # kernels:  bs, win_num, c, c, k_size, k_size
+        kernels = kernels.reshape(B, self.dim, self.win_num, self.dim, self.kernel_size, self.kernel_size).transpose(1, 2)
+
+        # kernels:  bs, win_num+1, c, c, k_size, k_size
+        kernels = torch.cat([kernels, global_kernel], dim=1)
+
+        # kernels:  bs*(win_num+1)*c, c, k_size, k_size
+        kernels = kernels.reshape(-1, self.dim, self.kernel_size, self.kernel_size)
 
 
         ### 卷积核与输入特征计算卷积
         # x:  bs, c, h, w
         x = x.reshape(B, H, W, C).permute(0, 3, 1, 2)
 
-        # x:  bs, win_num*c, h, w
-        x = x.repeat(1, self.win_num, 1, 1)
+        # x:  bs, (win_num+1)*c, h, w
+        x = x.repeat(1, self.win_num+1, 1, 1)
 
-        # x:  bs, win_num*c, h, w
-        x, _ = self.convlayer2(x, kernels)
-        # x = F.conv2d(x, kernels, stride=self.stride, padding=self.padding, groups=self.win_num)
+        # x:  1, bs*(win_num+1)*c, h, w
+        x = x.reshape(1, B*(self.win_num+1)*C, H, W)
+
+        # x:  1, bs*(win_num+1)*c, h, w
+        x, _ = self.convlayer2(x, kernels, groups=B*(self.win_num+1))
+        
+        # x:  bs, (win_num+1)*c, h, w
+        x = x.reshape(B, (self.win_num+1)*C, H, W)
 
         # x:  bs, c, h, w
         x = self.fusion(x)
