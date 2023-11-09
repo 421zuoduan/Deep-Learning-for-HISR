@@ -39,16 +39,22 @@
 * **PSRT_KAv5_noshuffle**：卷窗口的KA，kernels融合成global kernel，只用global kernel与全图卷积。串行
 * PSRT_KAv6_noshuffle：卷窗口的KA，kernels融合成global kernel，窗口核和全局核都卷全局，然后fusion。串行
 * **PSRT_KAv11_noshuffle**：基于KAv5和KAv7，卷全图，卷积核没有SA和SE，有global kernel。并行
+* PSRT_KAv12_noshuffle：基于KAv10和KAv11，卷全图，有SA无SE，有global kernel。并行
+
 
 无global kernel：
 * **PSRT_KAv7_noshuffle**：基于KAv2和KAv6，卷积核共享SE参数。窗口生成的卷积核与全图计算卷积，然后融合
 * PSRT_KAv8_noshuffle：与KAv6思想相同，se的参数是窗口核和全局核共享
 * PSRT_KAv10_noshuffle：基于KAv7，卷全图，不加SE模块，无global kernel。并行
+* PSRT_KAv13_noshuffle：基于KAv11，卷全图，不加SA，无global kernel。并行，加GELU
 
 **卷窗口**：
 * [code error] PSRT_KAv2_noshuffle：把卷窗口的KA放进noshuffle的PSRT中，并行。KAv2的代码有错误，一个维度转换有问题；需要注意，没有for会比有for少三个SE，SE的参数是共享的
 * PSRT_KAv3_noshuffle：卷窗口的KA，串行
 * PSRT_KAv4_noshuffle：卷窗口的KA，窗口生成卷积核融合成一个全局卷积核（记为global kernel，1\*1卷积实现），窗口卷积核与窗口卷积，全局卷积核与全图卷积，融合得到的五张图为一张图（1*1卷积）。串行
+
+**Conv-GELU-Conv结构**
+* PSRT_KAv14_noshuffle：基于KAv11，SE的激活函数改为GELU；SE放在SA前面；都和reverse后的feature map进行第二次卷积
 
 
 
@@ -73,11 +79,14 @@ PSRT设置bs=32，lr=1e-4，embed_dim=48
 |有global kernel|----|----|----|----|----|
 |**PSRT_KAv7_noshuffle**|**2.1232879**|**2.1154806**|**50.4642246**|**0.894 M**||
 |PSRT_KAv8_noshuffle|2.1751094|2.4212308|50.3579216|0.946 M||
-|PSRT_KAv10_noshuffle||||0.894 M||
+|**PSRT_KAv10_noshuffle**|**2.2156852**|**1.4317201**|**50.7399171**|**0.894 M**||
+|PSRT_KAv12_noshuffle|2.3742382|1.2469189|50.6505637|0.851 M||
+|PSRT_KAv16_noshuffle|2.3273963|1.2449526|50.4512170|||
 |无global kernel|----|----|----|----|----|
 |**PSRT_KAv7_noshuffle**|**2.1232879**|**2.1154806**|**50.4642246**|**0.894 M**||
 |PSRT_KAv8_noshuffle|2.1751094|2.4212308|50.3579216|0.946 M||
 |PSRT_KAv9_noshuffle|2.2132997|3.2366958|50.0673282|0.519 M||
+|PSRT_KAv13_noshuffle|2.1941420|2.4338021|50.1611231|0.894 M|6号机 UDLv2|20231028|
 |卷窗口|----|----|----|----|----|
 |PSRT_KAv2_noshuffle|2.2752936|2.0677896|49.6950313|0.854 M|code error|
 |PSRT_KAv3_noshuffle|2.2756061|1.7408064|50.1445174|0.918 M||
@@ -91,6 +100,8 @@ PSRT_KAv6_noshuffle怀疑是过拟合了，作test，2000epoch时，PSNR只有40
 
 ## 需要讨论
 
+20231028
+
 * 为什么去掉PSRT的shuffle效果会有提升？baseline没有滑动窗口
 
 * 进入Kernel Attention的张量不保留LayerNorm，保留Window Attention的LayerNorm？（EDSR）
@@ -102,6 +113,20 @@ PSRT_KAv6_noshuffle怀疑是过拟合了，作test，2000epoch时，PSNR只有40
 * 对卷积核计算自注意力和通道注意力，这里能不能只计算通道自注意力。因为3*3卷积核太小了，自注意力计算可能带来负面的影响。或者这里不计算空间自注意力，计算通道自注意力？3\*3->5\*5？
 
 * kernels是否共享SE的参数？global kernel是否共享？
+
+20231109
+
+* 卷积核的Attention效果确实会下降。
+
+* 卷积核赋权使用SA都不可行，(bs, 4, c\*k\*k)，生成qkv的过程参数量是$$k^4\times c^2$$。这部分我用类似SE的过程实现的
+
+* GELU是对B C H W做还是对B L C做
+
+* ConvNeXt为什么在Attention部分使用大核卷积？同理SegNeXt
+
+* 如果使用两个卷积替换Attention，要不要加shortcut
+
+* 
 
 
 
