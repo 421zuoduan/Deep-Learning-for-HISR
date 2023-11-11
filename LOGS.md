@@ -49,7 +49,7 @@ module放在stage最后:
 * PSRT_KAv12_noshuffle：基于KAv10和KAv11，卷全图，有SA无SE，有global kernel。并行
 * PSRT_KAv13_noshuffle：基于KAv11，卷全图，不加SA，无global kernel。并行，加GELU
 * PSRT_KAv14_noshuffle：基于KAv11，SE的激活函数改为GELU；SE放在SA前面；都和reverse后的feature map进行第二次卷积；global kernel由未进行注意力计算的卷积核生成
-* PSRT_KAv15_noshuffle：基于KAv14，SE的激活函数改为GELU；SE放在SA前面；都和原图进行第二次卷积；global kernel由未进行注意力计算的卷积核生成
+* PSRT_KAv15_noshuffle：基于KAv14；无SA和SE；都和conv1进行第二次卷积；有global kernel；有shortcut
 * PSRT_KAv16_noshuffle：基于KAv5和KAv7，SE的激活函数改为GELU；没有SA有SE，有global kernel。并行
 * PSRT_KAv17_noshuffle：基于KAv7和KAv15；无SA和SE；都和原图进行第二次卷积；有global kernel；窗口卷积核使用第一次卷积的window赋权
 
@@ -101,6 +101,7 @@ PSRT设置bs=32，lr=1e-4，embed_dim=48
 |PSRT_kernelattentionv5|2.2799347|3.8122486|49.5119861|0.665 M|2号机 UDL|20231015|
 |PSRT_KAv1(embed_Dim=48)|2.2844245|2.5096108|49.8647584|0.665 M|2号机 UDL|20231012|
 |PSRT_noshuffle(bs=32)|2.1245276|2.2309420|50.4692293|0.538 M|6号机 UDLv2|20231013|
+|PSRT_noshuffle(bs=32)||||0.538 M|2号机 UDLv2|20231110|
 |PSRT_noshuffle(bs=24)|2.1135997|2.4447264|50.1396261|0.538 M|笔记本|慢慢跑|
 |PSRT_KAv1_noshuffle|2.2294778|1.3029419|50.7237681|0.779 M|6号机 UDL|20231017|
 |PSRT_KAv2_noshuffle|2.2752936|2.0677896|49.6950313|0.854 M|6号机|20231013|
@@ -118,6 +119,7 @@ PSRT设置bs=32，lr=1e-4，embed_dim=48
 |PSRT_KAv12_noshuffle|2.3742382|1.2469189|50.6505637|0.851 M|2号机 UDL|20231103|
 |PSRT_KAv13_noshuffle|2.1941420|2.4338021|50.1611231|0.894 M|6号机 UDLv2|20231028|
 |PSRT_KAv14_noshuffle||||0.851 M|||
-|PSRT_KAv15_noshuffle||||0.890 M|2号机 UDLv3|20231107 第2次实验改代码了，服务器是正确的|
+|PSRT_KAv15_noshuffle||||0.890 M|2号机 UDLv3|20231107被kill 20231111|
 |PSRT_KAv16_noshuffle|2.3273963|1.2449526|50.4512170||2号机 UDLv3|20231103 / 20231105|
-|PSRT_KAv17_noshuffle||||0.884 M|2号机 UDL|20231108|
+|PSRT_KAv17_noshuffle|2.2564485|1.4551722|50.7045628|0.884 M|2号机 UDL|20231108|
+|PSRT_KAv18_noshuffle|||||2号机 UDL|20231111|

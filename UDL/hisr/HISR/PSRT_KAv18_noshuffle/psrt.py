@@ -139,17 +139,89 @@ class SELayer_KA(nn.Module):
         return x
     
 
+class WinKernel_Reweight(nn.Module):
+    def __init__(self, dim, win_num=4):
+        super().__init__()
+        
+        self.dim = dim
+        self.win_num = win_num
+        self.pooling = nn.AdaptiveAvgPool2d((1, 1))
+        self.downchannel = nn.Conv2d(win_num*dim, win_num, kernel_size=1, groups=win_num)
+        self.linear1 = nn.Conv2d(win_num, win_num*4, kernel_size=1)
+        self.gelu = nn.GELU()
+        self.linear2 = nn.Conv2d(win_num*4, win_num, kernel_size=1)
+        self.sigmoid = nn.Sigmoid()
+
+    def forward(self, kernels, windows):
+        """
+        kernels:  win_num*c, c, k ,k
+        windows:  bs, win_num*c, wh, ww
+        """
+
+        B = windows.shape[0]
+
+        # win_weight:  bs, win_num*c, 1, 1
+        win_weight = self.pooling(windows)
+
+        # win_weight:  bs, win_num, 1, 1
+        win_weight = self.downchannel(win_weight)
+
+        win_weight = self.linear1(win_weight)
+        win_weight = win_weight.permute(0, 2, 3, 1).reshape(B, 1, -1)
+        win_weight = self.gelu(win_weight)
+        win_weight = win_weight.transpose(1, 2).reshape(B, -1, 1, 1)
+        win_weight = self.linear2(win_weight)
+        # weight:  bs, win_num, 1, 1, 1, 1
+        weight = self.sigmoid(win_weight).unsqueeze(-1).unsqueeze(-1)
+
+        # kernels:  1, win_num, c, c, k, k
+        kernels = kernels.reshape(self.win_num, self.dim, self.dim, kernels.shape[-2], kernels.shape[-1]).unsqueeze(0)
+
+        # kernels:  bs, win_num, c, c, k, k
+        kernels = kernels.repeat(B, 1, 1, 1, 1, 1)
+
+        # kernels:  bs, win_num, c, c, k, k
+        kernels = weight * kernels
+
+        # kernels:  bs*win_num*c, c, k, k
+        kernels = kernels.reshape(-1, self.dim, kernels.shape[-2], kernels.shape[-1])
+
+        return kernels
+    
+
 class ConvLayer(nn.Module):
-    def __init__(self, dim, win_num, kernel_size=3, stride=1, padding=1):
+    def __init__(self, dim, kernel_size=3, stride=1, padding=1, groups=4, win_num=4, k_in=False):
         super().__init__()
 
-        self.conv = nn.Conv2d(win_num*dim, win_num*dim, kernel_size=kernel_size, stride=stride, padding=padding, groups=win_num)
+        self.dim = dim
+        self.win_num = win_num
+        self.kernel_size = kernel_size
+        self.stride = stride
+        self.padding = padding
+        self.groups = groups
+        if not k_in:
+            self.params = nn.Parameter(torch.randn(win_num*dim, dim, kernel_size, kernel_size), requires_grad=True)
+        else:
+            self.params = None
 
-    def forward(self, x, kernels=None):
+    def forward(self, x, kernels=None, groups=None):
+        '''
+        x:  bs, win_num*c, wh, ww
+        kernels:  None
 
-        x = self.conv(x)
+        or
 
-        return x, self.conv.weight
+        x:  bs, win_num*c, h, w
+        kernels:  c*win_num, c, k_size, k_size
+        '''
+
+        if kernels is None:
+            x = F.conv2d(x, self.params, stride=self.stride, padding=self.padding, groups=self.groups)
+        else:
+            x = F.conv2d(x, kernels, stride=self.stride, padding=self.padding, groups=groups)
+
+        return x, self.params
+
 
 class KernelAttention(nn.Module):
     """
@@ -184,9 +256,10 @@ class KernelAttention(nn.Module):
         self.window_size = int(input_resolution // sqrt(ka_win_num))
 
         self.num_layers = self.win_num
-        self.convlayer = ConvLayer(dim, ka_win_num, kernel_size, stride, padding)
-        self.kernel_linear = nn.Conv2d(self.win_num*self.dim, self.dim, kernel_size=1, stride=1, padding=0)
-        self.fusion = nn.Conv2d((self.win_num+1)*self.dim, self.dim, kernel_size=1, stride=1, padding=0)
+        self.convlayer1 = ConvLayer(dim, kernel_size, stride, padding, groups=ka_win_num, k_in=False)
+        self.wink_reweight = WinKernel_Reweight(dim, win_num=ka_win_num)
+        self.convlayer2 = ConvLayer(dim, kernel_size, stride, padding, k_in=True)
+        self.fusion = nn.Conv2d(self.win_num*self.dim, self.dim, kernel_size=1, stride=1, padding=0)
 
 
     def forward(self, x):
@@ -199,33 +272,34 @@ class KernelAttention(nn.Module):
         # x_windows:  bs, win_num*c, wh, ww
         x_windows = ka_window_partition(x, self.window_size)
 
+        # windows_conv1:  bs, win_num*c, wh, ww
         # kernels:  win_num*c, c, k_size, k_size
-        _, kernels = self.convlayer(x_windows)
+        windows_conv1, kernels = self.convlayer1(x_windows)
 
         # kernels:  c, win_num*c, k_size, k_size
         kernels = kernels.reshape(self.win_num, self.dim, self.dim, self.kernel_size, self.kernel_size).transpose(0, 1).reshape(self.dim, self.win_num*self.dim, self.kernel_size, self.kernel_size)
 
 
-        ### 生成global_kernel，并与kernels连接在一起
-        # global_kernel:  c, c, k_size, k_size
-        global_kernel = self.kernel_linear(kernels)
-
-        # kernels:  c, (win_num+1)*c, k_size, k_size
-        kernels = torch.cat([kernels, global_kernel], dim=1)
-
-        # kernels:  (win_num+1)*c, c, k_size, k_size
-        kernels = kernels.reshape(self.dim, self.win_num+1, self.dim, self.kernel_size, self.kernel_size).transpose(0, 1).reshape((self.win_num+1)*self.dim, self.dim, self.kernel_size, self.kernel_size)
-
+        ### 给窗口卷积核赋权        A1win1 ... A4win4
+        # kernels:  bs*win_num*c, c, k_size, k_size
+        kernels = self.wink_reweight(kernels, windows_conv1)
+        
 
         ### 卷积核与输入特征计算卷积
         # x:  bs, c, h, w
         x = x.reshape(B, H, W, C).permute(0, 3, 1, 2)
 
         # x:  bs, (win_num+1)*c, h, w
-        x = x.repeat(1, self.win_num+1, 1, 1)
+        x = x.repeat(1, self.win_num, 1, 1)
 
-        # x:  bs, (win_num+1)*c, h, w
-        x = F.conv2d(x, kernels, stride=self.stride, padding=self.padding, groups=self.win_num+1)
+        # x:  1, bs*win_num*c, h, w
+        x = x.reshape(1, B*self.win_num*C, H, W)
+
+        # x:  1, bs*win_num*c, h, w
+        x, _ = self.convlayer2(x, kernels, groups=B*self.win_num)
+        
+        # x:  bs, win_num*c, h, w
+        x = x.reshape(B, self.win_num*C, H, W)
 
         # x:  bs, c, h, w
         x = self.fusion(x)
