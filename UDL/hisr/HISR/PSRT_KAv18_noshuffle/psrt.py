@@ -276,9 +276,6 @@ class KernelAttention(nn.Module):
         # kernels:  win_num*c, c, k_size, k_size
         windows_conv1, kernels = self.convlayer1(x_windows)
 
-        # kernels:  c, win_num*c, k_size, k_size
-        kernels = kernels.reshape(self.win_num, self.dim, self.dim, self.kernel_size, self.kernel_size).transpose(0, 1).reshape(self.dim, self.win_num*self.dim, self.kernel_size, self.kernel_size)
-
 
         ### 给窗口卷积核赋权        A1win1 ... A4win4
         # kernels:  bs*win_num*c, c, k_size, k_size

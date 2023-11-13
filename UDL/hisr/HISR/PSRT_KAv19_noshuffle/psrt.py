@@ -190,7 +190,7 @@ class WinKernel_Reweight(nn.Module):
     
 
 class ConvLayer(nn.Module):
-    def __init__(self, dim, kernel_size=3, stride=1, padding=1, groups=4, win_num=4, k_in=False):
+    def __init__(self, dim, kernel_size=5, stride=1, padding=2, groups=4, win_num=4, k_in=False):
         super().__init__()
 
         self.dim = dim
@@ -200,7 +200,7 @@ class ConvLayer(nn.Module):
         self.padding = padding
         self.groups = groups
         if not k_in:
-            self.params = nn.Parameter(torch.randn(win_num*dim, dim, kernel_size, kernel_size), requires_grad=True)
+            self.params = nn.Parameter(torch.randn(win_num*dim, 1, kernel_size, kernel_size), requires_grad=True)
         else:
             self.params = None
 
@@ -216,9 +216,9 @@ class ConvLayer(nn.Module):
         '''
 
         if kernels is None:
-            x = F.conv2d(x, self.params, stride=self.stride, padding=self.padding, groups=self.groups)
+            x = F.conv2d(x, self.params, stride=self.stride, padding=self.padding, groups=self.groups*self.dim)
         else:
-            x = F.conv2d(x, kernels, stride=self.stride, padding=self.padding, groups=groups)
+            x = F.conv2d(x, kernels, stride=self.stride, padding=self.padding, groups=groups*self.dim)
 
         return x, self.params
 
@@ -241,7 +241,7 @@ class KernelAttention(nn.Module):
         padding: 卷积padding
     """
 
-    def __init__(self, dim, input_resolution, num_heads, ka_win_num=4, kernel_size=3, stride=1, padding=1, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.):
+    def __init__(self, dim, input_resolution, num_heads, ka_win_num=4, kernel_size=5, stride=1, padding=2, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.):
         super().__init__()
 
         self.dim = dim
@@ -273,11 +273,11 @@ class KernelAttention(nn.Module):
         x_windows = ka_window_partition(x, self.window_size)
 
         # windows_conv1:  bs, win_num*c, wh, ww
-        # kernels:  win_num*c, c, k_size, k_size
+        # kernels:  win_num*c, 1, k_size, k_size
         windows_conv1, kernels = self.convlayer1(x_windows)
 
-        # kernels:  c, win_num*c, k_size, k_size
-        kernels = kernels.reshape(self.win_num, self.dim, self.dim, self.kernel_size, self.kernel_size).transpose(0, 1).reshape(self.dim, self.win_num*self.dim, self.kernel_size, self.kernel_size)
+        # kernels:  c, win_num, k_size, k_size
+        kernels = kernels.reshape(self.win_num, self.dim, 1, self.kernel_size, self.kernel_size).transpose(0, 1).reshape(self.dim, self.win_num, self.kernel_size, self.kernel_size)
 
 
         ### 给窗口卷积核赋权        A1win1 ... A4win4
@@ -341,7 +341,7 @@ class Window_Attention(nn.Module):
 
         assert 0 <= self.window_size <= input_resolution, "input_resolution should be larger than window_size"
 
-        self.KernelAttention = KernelAttention(dim//2, input_resolution, num_heads=num_heads//2, ka_win_num=ka_win_num, kernel_size=3, stride=1, padding=1)
+        self.KernelAttention = KernelAttention(dim//2, input_resolution, num_heads=num_heads//2, ka_win_num=ka_win_num, kernel_size=5, stride=1, padding=2)
         self.attn = Attention(
             dim//2, num_heads=num_heads//2,
             qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
