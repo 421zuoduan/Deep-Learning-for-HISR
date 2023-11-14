@@ -24,77 +24,67 @@
 <img src="G:\dl\UDL\KA.png" alt="KA" style="zoom:40%;" />
 
 
-双分支结构（加粗为效果相对较好的尝试，PSRT_noshuffle是baseline）：
+双分支结构：
 
-之前写代码是用for实现窗口卷积的串行运行结构；后来用分组卷积实现了并行运行，所以这里区分开。串行、并行代码除了速度上的区别，还有SE模块参数是否窗口共享的区别。
-
-**卷全局**：
+#### **baseline**
+PSRT设置bs=32，lr=1e-4，embed_dim=48
 * **PSRT_noshuffle**：把PSRT的shuffle都变成普通的Swin Block
 
-池化生成卷积核：
-* **PSRT_KAv1_noshuffle**：卷积核由池化生成，自注意力、SE计算后去卷全图，卷积核暴力升维（c->c\*\*2），与原图重新计算卷积，1*1卷积融合得到的四张图。并行
-* PSRT_KAv9_noshuffle：基于KAv1，生成卷积核增加c的维度的方法改为repeat，c**2->c\*c后进行一个参数为c*c的linear
-
-有global kernel：
+#### **有global kernel**
 * **PSRT_KAv5_noshuffle**：卷窗口的KA，kernels融合成global kernel，只用global kernel与全图卷积。串行
 * PSRT_KAv6_noshuffle：卷窗口的KA，kernels融合成global kernel，窗口核和全局核都卷全局，然后fusion。串行
-* **PSRT_KAv11_noshuffle**：基于KAv5和KAv7，卷全图，卷积核没有SA和SE，有global kernel。并行
+* **PSRT_KAv11_noshuffle**：基于KAv5和KAv7，卷全图，没有SA和SE，有global kernel。并行
 * PSRT_KAv12_noshuffle：基于KAv10和KAv11，卷全图，有SA无SE，有global kernel。并行
+* PSRT_KAv16_noshuffle：基于KAv5和KAv7，卷全图，没有SA有SE，SE的激活函数改为GELU；有global kernel。并行
+* PSRT_KAv17_noshuffle：基于KAv11；无SA和SE；都和原图进行第二次卷积；有global kernel；窗口卷积核使用第一次卷积的window赋权
+
+|模型|SAM|ERGAS|PSNR|参数量|SA|SE|global_kernel|第二次卷积|卷积核赋权|
+|----|----|----|----|----|----|----|----|----|----|
+|5|2.1078129|2.2032974|50.5076604|1.002 M|×|×|√|原图|×|
+|6|4.7182505|3.9199647|40.0239899|1.054 M|√|√|√|原图|×|
+|11|2.1693590|1.4011621|50.8749442|0.881 M|×|×|√|原图|×|
+|12|2.3742382|1.2469189|50.6505637|0.851 M|√|×|√|原图|×|
+|16|2.3273963|1.2449526|50.4512170|0.901 M|×|×|√|原图|×|
+|17|2.2564485|1.4551722|50.7045628|0.884 M|×|×|√|原图|√|
+
+有global kernel、不进行卷积核的SA和SE效果最好
 
 
-无global kernel：
+#### **无global kernel**
 * **PSRT_KAv7_noshuffle**：基于KAv2和KAv6，卷积核共享SE参数。窗口生成的卷积核与全图计算卷积，然后融合
 * PSRT_KAv8_noshuffle：与KAv6思想相同，se的参数是窗口核和全局核共享
 * PSRT_KAv10_noshuffle：基于KAv7，卷全图，不加SE模块，无global kernel。并行
 * PSRT_KAv13_noshuffle：基于KAv11，卷全图，不加SA，无global kernel。并行，加GELU
+* PSRT_KAv18_noshuffle：基于KAv11；卷全图无SA和SE；都和原图进行第二次卷积；无global kernel；窗口卷积核使用第一次卷积的window赋权
 
-**卷窗口**：
+|模型|SAM|ERGAS|PSNR|参数量|SA|SE|global_kernel|第二次卷积|卷积核赋权|
+|----|----|----|----|----|----|----|----|----|----|
+|7|2.1232879|2.1154806|50.4642246|0.894 M|√|√（共享）|×|原图|×|
+|8|2.1751094|2.4212308|50.3579216|0.946 M|√|√（共享）|×|原图|×|
+|10|2.2156852|1.4317201|50.7399171|0.894 M|√|×|×|原图|×|
+|13|2.1941420|2.4338021|50.1611231|0.894 M|×|√|×|原图|×|
+|18|2.3828535|1.3595995|50.2718298|0.832 M|×|×|×|原图|√|
+
+
+#### **Conv-GELU-Conv结构**
+* PSRT_KAv14_noshuffle：基于KAv11，SE的激活函数改为GELU；SE放在SA前面；都和reverse后的feature map进行第二次卷积。不收敛
+* PSRT_KAv15_noshuffle：基于KAv14，在attention加shortcut，不收敛
+
+
+#### **卷窗口**
 * [code error] PSRT_KAv2_noshuffle：把卷窗口的KA放进noshuffle的PSRT中，并行。KAv2的代码有错误，一个维度转换有问题；需要注意，没有for会比有for少三个SE，SE的参数是共享的
 * PSRT_KAv3_noshuffle：卷窗口的KA，串行
 * PSRT_KAv4_noshuffle：卷窗口的KA，窗口生成卷积核融合成一个全局卷积核（记为global kernel，1\*1卷积实现），窗口卷积核与窗口卷积，全局卷积核与全图卷积，融合得到的五张图为一张图（1*1卷积）。串行
 
-**Conv-GELU-Conv结构**
-* PSRT_KAv14_noshuffle：基于KAv11，SE的激活函数改为GELU；SE放在SA前面；都和reverse后的feature map进行第二次卷积
 
-
+#### **池化生成卷积核**
+* **PSRT_KAv1_noshuffle**：卷积核由池化生成，自注意力、SE计算后去卷全图，卷积核暴力升维（c->c\*\*2），与原图重新计算卷积，1*1卷积融合得到的四张图。并行
+* PSRT_KAv9_noshuffle：基于KAv1，生成卷积核增加c的维度的方法改为repeat，c**2->c\*c后进行一个参数为c*c的linear
 
 
 ## 测试结果
 
 ### PSRT模型改进的测试结果
-
-PSRT设置bs=32，lr=1e-4，embed_dim=48
-
-|模型|SAM|ERGAS|PSNR|参数量|note|
-|----|----|----|----|----|----|
-|PSRT(embed_Dim=32)|-|-|-|0.248 M|-|
-|PSRT(embed_Dim=64)|-|-|-|0.939 M|-|
-|PSRT(embed_Dim=48)|2.2407495|2.4452974|50.0313946|0.538 M||
-|**PSRT_noshuffle**|**2.1245276**|**2.2309420**|**50.4692293**|**0.538 M**||
-|**PSRT_KAv1_noshuffle**|**2.2294778**|**1.3029419**|**50.7237681**|**0.779 M**||
-|池化生成卷积核|----|----|----|----|----|
-|**PSRT_KAv5_noshuffle**|**2.1078129**|**2.2032974**|**50.5076604**|**1.002 M**||
-|PSRT_KAv6_noshuffle|4.7182505|3.9199647|40.0239899|1.054 M||
-|**PSRT_KAv11_noshuffle**|**2.1693590**|**1.4011621**|**50.8749442**|**0.881 M**||
-|有global kernel|----|----|----|----|----|
-|**PSRT_KAv7_noshuffle**|**2.1232879**|**2.1154806**|**50.4642246**|**0.894 M**||
-|PSRT_KAv8_noshuffle|2.1751094|2.4212308|50.3579216|0.946 M||
-|**PSRT_KAv10_noshuffle**|**2.2156852**|**1.4317201**|**50.7399171**|**0.894 M**||
-|PSRT_KAv12_noshuffle|2.3742382|1.2469189|50.6505637|0.851 M||
-|PSRT_KAv16_noshuffle|2.3273963|1.2449526|50.4512170|||
-|无global kernel|----|----|----|----|----|
-|**PSRT_KAv7_noshuffle**|**2.1232879**|**2.1154806**|**50.4642246**|**0.894 M**||
-|PSRT_KAv8_noshuffle|2.1751094|2.4212308|50.3579216|0.946 M||
-|PSRT_KAv9_noshuffle|2.2132997|3.2366958|50.0673282|0.519 M||
-|PSRT_KAv13_noshuffle|2.1941420|2.4338021|50.1611231|0.894 M|6号机 UDLv2|20231028|
-|卷窗口|----|----|----|----|----|
-|PSRT_KAv2_noshuffle|2.2752936|2.0677896|49.6950313|0.854 M|code error|
-|PSRT_KAv3_noshuffle|2.2756061|1.7408064|50.1445174|0.918 M||
-|PSRT_KAv4_noshuffle|2.1899021|2.3440072|50.2209833|1.002 M||
-
-PSRT_KAv6_noshuffle怀疑是过拟合了，作test，2000epoch时，PSNR只有40；1999epoch时，PSNR有50.26；1998epoch时，PSNR有50.43；1500epoch时，PSNR有50.24。
-或许是checkpoint问题？例如加载`UDL/results/hisr/PSRT_KAv10_noshuffle/cave_x4/AdaTrans/Test/model_2023-10-26-10-30/1760.pth.tar`，后续训练中最好的loss就是1760epoch，这样的问题出现过两次了。
-
 
 
 
