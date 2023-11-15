@@ -145,7 +145,7 @@ class WinKernel_Reweight(nn.Module):
         
         self.dim = dim
         self.win_num = win_num
-        self.pooling = nn.AdaptiveAvgPool2d((1, 1))
+        self.pooling = nn.AdaptiveAvgPool2d((1, 1, 1))
         self.downchannel = nn.Conv2d(win_num*dim, win_num, kernel_size=1, groups=win_num)
         self.linear1 = nn.Conv2d(win_num, win_num*4, kernel_size=1)
         self.gelu = nn.GELU()
@@ -160,11 +160,11 @@ class WinKernel_Reweight(nn.Module):
 
         B = windows.shape[0]
 
-        # win_weight:  bs, win_num*c, 1, 1
-        win_weight = self.pooling(windows)
+        # windows:  bs, win_num, c, wh, ww
+        windows = windows.reshape(B, self.win_num, self.dim, windows.shape[-2], windows.shape[-1])
 
-        # win_weight:  bs, win_num, 1, 1
-        win_weight = self.downchannel(win_weight)
+        # win_weight:  bs, win_num, 1, 1, 1
+        win_weight = self.pooling(windows).squeeze(-1)
 
         win_weight = self.linear1(win_weight)
         win_weight = win_weight.permute(0, 2, 3, 1).reshape(B, 1, -1)

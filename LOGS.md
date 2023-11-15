@@ -54,7 +54,7 @@ module放在stage最后:
 * PSRT_KAv17_noshuffle：基于KAv7和KAv15；无SA和SE；都和原图进行第二次卷积；有global kernel；窗口卷积核使用第一次卷积的window赋权
 * PSRT_KAv18_noshuffle：基于KAv7和KAv15；无SA和SE；都和原图进行第二次卷积；无global kernel；窗口卷积核使用第一次卷积的window赋权
 * PSRT_KAv19_noshuffle：基于KAv11，卷全图，不加SA和SE，无global kernel。
-* PSRT_KAv20_noshuffle：基于KAv17；无SA和SE；都和原图进行第二次卷积；有global kernel；窗口卷积核使用第一次卷积的window赋权；赋权大一点
+* PSRT_KAv20_noshuffle：基于KAv17；无SA和SE；都和原图进行第二次卷积；有global kernel；窗口卷积核使用第一次卷积的window赋权；直接用Adaptive pooling
 
 
 * PSRT_kernelattentionv5：使用KA的旧代码进行改进（有for）
@@ -63,7 +63,7 @@ module放在stage最后:
 
 
 
-
+ 
 ## 训练说明（笔记本4060）
 
 * 20231009：跑BDT_KAv4，凌晨。运行768epoch，后续放在6号机上运行
@@ -121,13 +121,14 @@ PSRT设置bs=32，lr=1e-4，embed_dim=48
 |PSRT_KAv11_noshuffle|2.1693590|1.4011621|50.8749442|0.881 M|2号机 UDLv2|20231024|
 |PSRT_KAv12_noshuffle|2.3742382|1.2469189|50.6505637|0.851 M|2号机 UDL|20231103|
 |PSRT_KAv13_noshuffle|2.1941420|2.4338021|50.1611231|0.894 M|6号机 UDLv2|20231028|
-|PSRT_KAv14_noshuffle||||0.851 M|||
+|PSRT_KAv14_noshuffle||||0.851 M||不收敛|
 |PSRT_KAv15_noshuffle||||0.890 M|2号机 UDLv3|20231107被kill 20231111不收敛|
 |PSRT_KAv16_noshuffle|2.3273963|1.2449526|50.4512170|0.901 M|2号机 UDLv3|20231103 / 20231105|
 |PSRT_KAv17_noshuffle|2.2564485|1.4551722|50.7045628|0.884 M|2号机 UDL|20231108 code error|
 |PSRT_KAv17_noshuffle||||0.884 M|2号机 UDL|20231111|
 |PSRT_KAv18_noshuffle|2.3828535|1.3595995|50.2718298|0.832 M|2号机 UDLv2|20231111|
 |PSRT_KAv19_noshuffle|2.5441515|1.3270533|49.6788777|0.832 M|6号机 UDL|20231114|
+|PSRT_KAv20_noshuffle||||0.832 M|6号机 UDL|20231115|
 
 
 ## TODO
