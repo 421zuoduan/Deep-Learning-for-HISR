@@ -53,6 +53,8 @@ module放在stage最后:
 * PSRT_KAv16_noshuffle：基于KAv5和KAv7，SE的激活函数改为GELU；没有SA有SE，有global kernel。并行
 * PSRT_KAv17_noshuffle：基于KAv7和KAv15；无SA和SE；都和原图进行第二次卷积；有global kernel；窗口卷积核使用第一次卷积的window赋权
 * PSRT_KAv18_noshuffle：基于KAv7和KAv15；无SA和SE；都和原图进行第二次卷积；无global kernel；窗口卷积核使用第一次卷积的window赋权
+* PSRT_KAv19_noshuffle：基于KAv11，卷全图，不加SA和SE，无global kernel。
+* PSRT_KAv20_noshuffle：基于KAv17；无SA和SE；都和原图进行第二次卷积；有global kernel；窗口卷积核使用第一次卷积的window赋权；赋权大一点
 
 
 * PSRT_kernelattentionv5：使用KA的旧代码进行改进（有for）
@@ -123,4 +125,11 @@ PSRT设置bs=32，lr=1e-4，embed_dim=48
 |PSRT_KAv15_noshuffle||||0.890 M|2号机 UDLv3|20231107被kill 20231111不收敛|
 |PSRT_KAv16_noshuffle|2.3273963|1.2449526|50.4512170|0.901 M|2号机 UDLv3|20231103 / 20231105|
 |PSRT_KAv17_noshuffle|2.2564485|1.4551722|50.7045628|0.884 M|2号机 UDL|20231108 code error|
+|PSRT_KAv17_noshuffle||||0.884 M|2号机 UDL|20231111|
 |PSRT_KAv18_noshuffle|2.3828535|1.3595995|50.2718298|0.832 M|2号机 UDLv2|20231111|
+|PSRT_KAv19_noshuffle|2.5441515|1.3270533|49.6788777|0.832 M|6号机 UDL|20231114|
+
+
+## TODO
+
+* v5要把SE去掉重新实验
