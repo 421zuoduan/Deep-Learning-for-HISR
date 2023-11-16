@@ -16,7 +16,7 @@
 
 20231116
 
-分为三个部分阐述：有无卷积核SA，有无卷积核SE，有无全局卷积核，有无卷积核赋权
+主要有四个改进点：有无卷积核SA，有无卷积核SE，有无全局卷积核，有无卷积核赋权
 
 * 在没有全局卷积核时，SA带来效果提升，SE和卷积核赋权会使效果变差
 
@@ -32,6 +32,9 @@
 
 <!-- <img src="G:\dl\UDL\KA.png" alt="KA" style="zoom:40%;" /> -->
 
+![img](file:///E:\software\QQ\QQ Files\2826314784\Image\C2C\562C3D849184BE74467361CED38D9768.jpg)
+
+![img](file:///E:\software\QQ\QQ Files\2826314784\Image\C2C\9F07576D5097B504166DA0D545414734.jpg)
 
 双分支结构：
 
@@ -45,7 +48,7 @@ PSRT设置bs=32，lr=1e-4，embed_dim=48
 * **PSRT_KAv11_noshuffle**：基于KAv5和KAv7，卷全图，没有SA和SE，有global kernel。并行
 * PSRT_KAv12_noshuffle：基于KAv10和KAv11，卷全图，有SA无SE，有global kernel。并行
 * PSRT_KAv16_noshuffle：基于KAv5和KAv7，卷全图，没有SA有SE，SE的激活函数改为GELU；有global kernel。并行
-* PSRT_KAv17_noshuffle：基于KAv11；无SA和SE；都和原图进行第二次卷积；有global kernel；窗口卷积核使用第一次卷积的window赋权
+* **PSRT_KAv17_noshuffle**：基于KAv11；无SA和SE；都和原图进行第二次卷积；有global kernel；窗口卷积核使用第一次卷积的window赋权
 
 |模型|SAM|ERGAS|PSNR|参数量|SA|SE|global_kernel|第二次卷积|卷积核赋权|
 |----|----|----|----|----|----|----|----|----|----|
@@ -56,6 +59,7 @@ PSRT设置bs=32，lr=1e-4，embed_dim=48
 |12|2.3742382|1.2469189|50.6505637|0.851 M|√|×|√|原图|×|
 |16|2.3273963|1.2449526|50.4512170|0.901 M|×|×|√|原图|×|
 |**17**|**2.1851830**|**1.2657717**|**51.0142954**|0.884 M|×|×|√|原图|√|
+|21||||0.554 M|×|×|√|原图|√|
 
 有global kernel、不进行卷积核的SA和SE效果最好
 
@@ -66,6 +70,7 @@ PSRT设置bs=32，lr=1e-4，embed_dim=48
 * PSRT_KAv10_noshuffle：基于KAv7，卷全图，不加SE模块，无global kernel。并行
 * PSRT_KAv13_noshuffle：基于KAv11，卷全图，不加SA，无global kernel。并行，加GELU
 * PSRT_KAv18_noshuffle：基于KAv11；卷全图无SA和SE；都和原图进行第二次卷积；无global kernel；窗口卷积核使用第一次卷积的window赋权
+* PSRT_KAv19_noshuffle：基于KAv11，卷全图，不加SA和SE，无global kernel。
 
 |模型|SAM|ERGAS|PSNR|参数量|SA|SE|global_kernel|第二次卷积|卷积核赋权|
 |----|----|----|----|----|----|----|----|----|----|
@@ -90,6 +95,7 @@ PSRT设置bs=32，lr=1e-4，embed_dim=48
 
 |模型|SAM|ERGAS|PSNR|参数量|note|
 |----|----|----|----|----|----|
+|baseline|2.1187720|2.1811231|50.4297113|0.538 M||
 |2|2.2752936|2.0677896|49.6950313|0.854 M||
 |3|2.2756061|1.7408064|50.1445174|0.918 M||
 |4|2.1899021|2.3440072|50.2209833|1.002 M||
@@ -101,6 +107,7 @@ PSRT设置bs=32，lr=1e-4，embed_dim=48
 
 |模型|SAM|ERGAS|PSNR|参数量|note|
 |----|----|----|----|----|----|
+|baseline|2.1187720|2.1811231|50.4297113|0.538 M||
 |1|2.2294778|1.3029419|50.7237681|0.779 M||
 |9|2.2132997|3.2366958|50.0673282|0.519 M||
 
@@ -125,17 +132,12 @@ PSRT设置bs=32，lr=1e-4，embed_dim=48
 20231109
 
 * 卷积核的SA不能做B, win_num, c\*wh\*ww，这样全连接层参数爆炸
-
-* 卷积核的Attention效果确实会下降。
-
+* 卷积核的Attention效果确实会下降？
 * 卷积核赋权使用SA都不可行，(bs, 4, c\*k\*k)，生成qkv的过程参数量是$$k^4\times c^2$$。这部分我用类似SE的过程实现的
-
 * GELU是对B C H W做还是对B L C做
-
 * ConvNeXt为什么在Attention部分使用大核卷积？同理SegNeXt
-
 * 如果使用两个卷积替换Attention，要不要加shortcut
-
+* Conv-GELU-Conv结构为什么不收敛
 
 
 

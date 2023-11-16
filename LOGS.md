@@ -55,6 +55,7 @@ module放在stage最后:
 * PSRT_KAv18_noshuffle：基于KAv7和KAv15；无SA和SE；都和原图进行第二次卷积；无global kernel；窗口卷积核使用第一次卷积的window赋权
 * PSRT_KAv19_noshuffle：基于KAv11，卷全图，不加SA和SE，无global kernel。
 * PSRT_KAv20_noshuffle：基于KAv17；无SA和SE；都和原图进行第二次卷积；有global kernel；窗口卷积核使用第一次卷积的window赋权；直接用Adaptive pooling
+* PSRT_KAv21_noshuffle：基于KAv17；无SA和SE；都和原图进行第二次卷积；有global kernel；窗口卷积核使用第一次卷积的window赋权；使用7\*7的大核卷积
 
 
 * PSRT_kernelattentionv5：使用KA的旧代码进行改进（有for）
