@@ -60,8 +60,10 @@ from UDL.Basis.auxiliary import set_random_seed
 # from UDL.hisr.HISR.PSRT_KAv18_noshuffle.model_PSRT import build
 # from UDL.hisr.HISR.PSRT_KAv19_noshuffle.option_hisr_PSRT import cfg as args
 # from UDL.hisr.HISR.PSRT_KAv19_noshuffle.model_PSRT import build
-from UDL.hisr.HISR.PSRT_KAv20_noshuffle.option_hisr_PSRT import cfg as args
-from UDL.hisr.HISR.PSRT_KAv20_noshuffle.model_PSRT import build
+# from UDL.hisr.HISR.PSRT_KAv20_noshuffle.option_hisr_PSRT import cfg as args
+# from UDL.hisr.HISR.PSRT_KAv20_noshuffle.model_PSRT import build
+from UDL.hisr.HISR.PSRT_KAv21_noshuffle.option_hisr_PSRT import cfg as args
+from UDL.hisr.HISR.PSRT_KAv21_noshuffle.model_PSRT import build
 
 
 
