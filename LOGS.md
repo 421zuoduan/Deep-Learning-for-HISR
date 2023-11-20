@@ -45,13 +45,13 @@ module放在stage最后:
 * PSRT_KAv9_noshuffle：基于KAv1，生成卷积核增加c的维度的方法改为repeat，c**2->c\*c后进行一个参数为c*c的linear
 * [code error] PSRT_KAv10_noshuffle：基于KAv7，卷全图，不加SE模块，无global kernel。并行
 * PSRT_KAv10_noshuffle：基于KAv7，卷全图，有SA无SE，无global kernel。并行
-* PSRT_KAv11_noshuffle：基于KAv5和KAv7，卷全图，没有SA和SE，有global kernel。并行
+* **PSRT_KAv11_noshuffle**：基于KAv5和KAv7，卷全图，没有SA和SE，有global kernel。并行
 * PSRT_KAv12_noshuffle：基于KAv10和KAv11，卷全图，有SA无SE，有global kernel。并行
 * PSRT_KAv13_noshuffle：基于KAv11，卷全图，不加SA，无global kernel。并行，加GELU
 * PSRT_KAv14_noshuffle：基于KAv11，SE的激活函数改为GELU；SE放在SA前面；都和reverse后的feature map进行第二次卷积；global kernel由未进行注意力计算的卷积核生成
 * PSRT_KAv15_noshuffle：基于KAv14；无SA和SE；都和conv1进行第二次卷积；有global kernel；有shortcut
 * PSRT_KAv16_noshuffle：基于KAv5和KAv7，SE的激活函数改为GELU；没有SA有SE，有global kernel。并行
-* PSRT_KAv17_noshuffle：基于KAv7和KAv15；无SA和SE；都和原图进行第二次卷积；有global kernel；窗口卷积核使用第一次卷积的window赋权
+* **PSRT_KAv17_noshuffle**：基于KAv7和KAv15；无SA和SE；都和原图进行第二次卷积；有global kernel；窗口卷积核使用第一次卷积的window赋权
 * PSRT_KAv18_noshuffle：基于KAv7和KAv15；无SA和SE；都和原图进行第二次卷积；无global kernel；窗口卷积核使用第一次卷积的window赋权
 * PSRT_KAv19_noshuffle：基于KAv11，卷全图，不加SA和SE，无global kernel。
 * PSRT_KAv20_noshuffle：基于KAv17；无SA和SE；都和原图进行第二次卷积；有global kernel；窗口卷积核使用第一次卷积的window赋权；直接用Adaptive pooling
@@ -93,7 +93,11 @@ BDT设bs=64，lr=2e-4。后续需要重新实验，设置bs=32，lr=1e-4
 |BDT_KAv2||||3.350 M|||
 
 
+
+
 ### PSRT模型改进的测试结果
+
+#### **baseline**
 
 PSRT设置bs=32，lr=1e-4，embed_dim=48
 
@@ -103,39 +107,81 @@ PSRT设置bs=32，lr=1e-4，embed_dim=48
 |PSRT(embed_Dim=64)|-|-|-|0.939 M|-|-|
 |PSRT(embed_Dim=48) bs=32|2.2407495|2.4452974|50.0313946|0.538 M|6号机 UDL|20231011|
 |PSRT(embed_Dim=48) bs=24|2.1577592|2.5400309|50.1831174|0.538 M|6号机 UDL|20231118|
-|PSRT_kernelattentionv5|2.2799347|3.8122486|49.5119861|0.665 M|2号机 UDL|20231015|
-|PSRT_KAv1(embed_Dim=48)|2.2844245|2.5096108|49.8647584|0.665 M|2号机 UDL|20231012|
 |PSRT_noshuffle(bs=32)|2.1245276|2.2309420|50.4692293|0.538 M|6号机 UDLv2|20231013 断过|
 |PSRT_noshuffle(bs=32)|2.1187720|2.1811231|50.4297113|0.538 M|2号机 UDLv2|20231110 没断过|
 |PSRT_noshuffle(bs=24)|2.1135997|2.4447264|50.1396261|0.538 M|笔记本|慢慢跑|
 |PSRT_noshuffle(bs=24)||||0.538 M|6号机 UDLv2|20231118|
-|PSRT_KAv1_noshuffle|2.2294778|1.3029419|50.7237681|0.779 M|6号机 UDL|20231017|
-|PSRT_KAv2_noshuffle|2.2752936|2.0677896|49.6950313|0.854 M|6号机|20231013|
-|PSRT_KAv3_noshuffle|2.2756061|1.7408064|50.1445174|0.918 M|2号机 UDLv2|20231015|
-|PSRT_KAv4_noshuffle|2.1899021|2.3440072|50.2209833|1.002 M|2号机 UDLv2|20231018|
+
+
+#### **有global kernel**
+
+|模型|SAM|ERGAS|PSNR|参数量|训练位置|时间|
+|----|----|----|----|----|----|----|
 |PSRT_KAv5_noshuffle|2.1078129|2.2032974|50.5076604|1.002 M|2号机 UDL|20231019|
 |PSRT_KAv6_noshuffle|4.7182505|3.9199647|40.0239899|1.054 M|2号机 UDL|20231022 怀疑过拟合了，2000epoch时，PSNR只有40；1999epoch时，PSNR有50.26；1998epoch时，PSNR有50.43；1500epoch时，PSNR有50.24|
- eta: 0:00:00  SAM: 3.8978894 (avg:4.7182505)  ERGAS: 3.2478695 (avg:3.9199647)  PSNR: 37.3584900 (avg:40.0239899)  again
-|PSRT_KAv7_noshuffle|2.1232879|2.1154806|50.4642246|0.894 M|6号机 UDLv2(6太慢了) -> 2号机 UDLv3|20231022|
-|PSRT_KAv8_noshuffle|2.1751094|2.4212308|50.3579216|0.946 M|2号机 UDLv2|20231022|
-|PSRT_KAv9_noshuffle|2.2132997|3.2366958|50.0673282|0.519 M|6号机 UDL|20231023|
-|PSRT_KAv10_noshuffle|2.1785368|1.4475574|50.8828777|0.894 M|2号机 UDL error |20231024|
-|PSRT_KAv10_noshuffle|2.2156852|1.4317201|50.7399171|0.894 M|2号机 UDLv2 again|20231103|
 |PSRT_KAv11_noshuffle|2.1693590|1.4011621|50.8749442|0.881 M|2号机 UDLv2|20231024|
 |PSRT_KAv12_noshuffle|2.3742382|1.2469189|50.6505637|0.851 M|2号机 UDL|20231103|
-|PSRT_KAv13_noshuffle|2.1941420|2.4338021|50.1611231|0.894 M|6号机 UDLv2|20231028|
-|PSRT_KAv14_noshuffle||||0.851 M||不收敛|
-|PSRT_KAv15_noshuffle||||0.890 M|2号机 UDLv3|20231107被kill 20231111不收敛|
 |PSRT_KAv16_noshuffle|2.3273963|1.2449526|50.4512170|0.901 M|2号机 UDLv3|20231103 / 20231105|
 |PSRT_KAv17_noshuffle|2.2564485|1.4551722|50.7045628|0.884 M|2号机 UDL|20231108 code error|
 |PSRT_KAv17_noshuffle|2.1851830|1.2657717|51.0142954|0.884 M|2号机 UDL|20231111|
-|PSRT_KAv18_noshuffle|2.3828535|1.3595995|50.2718298|0.832 M|2号机 UDLv2|20231111|
-|PSRT_KAv19_noshuffle|2.5441515|1.3270533|49.6788777|0.832 M|6号机 UDL|20231114|
 |PSRT_KAv20_noshuffle||||0.832 M|2号机 UDL|20231118|
 |PSRT_KAv21_noshuffle|2.2524326|1.8789614|50.2661559|0.554 M|6号机 UDL|20231116|
 
+ eta: 0:00:00  SAM: 3.8978894 (avg:4.7182505)  ERGAS: 3.2478695 (avg:3.9199647)  PSNR: 37.3584900 (avg:40.0239899)  again
+
+#### **无global kernel**
+|模型|SAM|ERGAS|PSNR|参数量|训练位置|时间|
+|----|----|----|----|----|----|----|
+|PSRT_KAv7_noshuffle|2.1232879|2.1154806|50.4642246|0.894 M|6号机 UDLv2(6太慢了) -> 2号机 UDLv3|20231022|
+|PSRT_KAv8_noshuffle|2.1751094|2.4212308|50.3579216|0.946 M|2号机 UDLv2|20231022|
+|PSRT_KAv10_noshuffle|2.1785368|1.4475574|50.8828777|0.894 M|2号机 UDL error |20231024|
+|PSRT_KAv10_noshuffle|2.2156852|1.4317201|50.7399171|0.894 M|2号机 UDLv2 again|20231103|
+|PSRT_KAv13_noshuffle|2.1941420|2.4338021|50.1611231|0.894 M|6号机 UDLv2|20231028|
+|PSRT_KAv18_noshuffle|2.3828535|1.3595995|50.2718298|0.832 M|2号机 UDLv2|20231111|
+|PSRT_KAv19_noshuffle|2.5441515|1.3270533|49.6788777|0.832 M|6号机 UDL|20231114|
+
+
+#### **Conv-GELU-Conv结构**
+|模型|SAM|ERGAS|PSNR|参数量|训练位置|时间|
+|----|----|----|----|----|----|----|
+|PSRT_KAv14_noshuffle||||0.851 M||不收敛|
+|PSRT_KAv15_noshuffle||||0.890 M|2号机 UDLv3|20231107被kill 20231111不收敛|
+
+
+#### **卷窗口**
+|模型|SAM|ERGAS|PSNR|参数量|训练位置|时间|
+|----|----|----|----|----|----|----|
+|PSRT_KAv2_noshuffle|2.2752936|2.0677896|49.6950313|0.854 M|6号机|20231013|
+|PSRT_KAv3_noshuffle|2.2756061|1.7408064|50.1445174|0.918 M|2号机 UDLv2|20231015|
+|PSRT_KAv4_noshuffle|2.1899021|2.3440072|50.2209833|1.002 M|2号机 UDLv2|20231018|
+
+
+#### **池化生成卷积核**
+|模型|SAM|ERGAS|PSNR|参数量|训练位置|时间|
+|----|----|----|----|----|----|----|
+|PSRT_KAv1_noshuffle|2.2294778|1.3029419|50.7237681|0.779 M|6号机 UDL|20231017|
+|PSRT_KAv9_noshuffle|2.2132997|3.2366958|50.0673282|0.519 M|6号机 UDL|20231023|
+
+
+#### **PSRT的改进**
+|模型|SAM|ERGAS|PSNR|参数量|训练位置|时间|
+|----|----|----|----|----|----|----|
 |PSRT_KAv11||||0.653 M|6号机 UDL nomachine|20231119|
-|PSRT_KAv17||||0.653 M|6号机 UDL|20231119|
+|PSRT_KAv17|2.3413245|2.7532913|49.0937249|0.653 M|6号机 UDL|20231119|
+
+
+
+
+我也忘了以下是什么了
+
+|模型|SAM|ERGAS|PSNR|参数量|训练位置|时间|
+|----|----|----|----|----|----|----|
+|PSRT_kernelattentionv5|2.2799347|3.8122486|49.5119861|0.665 M|2号机 UDL|20231015|
+|PSRT_KAv1(embed_Dim=48)|2.2844245|2.5096108|49.8647584|0.665 M|2号机 UDL|20231012|
+
+
+
+
 
 
 
