@@ -40,13 +40,20 @@
 PSRT设置bs=32，lr=1e-4，embed_dim=48
 * **PSRT_noshuffle**：把PSRT的shuffle都变成普通的Swin Block
 
-#### **以PSRT有shuffle为baseline**
+|模型|SAM|ERGAS|PSNR|参数量|advanced|
+|----|----|----|----|----|----|
+|PSRT_noshuffle|2.1245276|2.2309420|50.4692293|0.538 M|bs=32 断过|
+|PSRT_noshuffle|2.1187720|2.1811231|50.4297113|0.538 M|bs=32 没断过|
+|PSRT_noshuffle|2.1135997|2.4447264|50.1396261|0.538 M|bs=24 断过|
+|PSRT_noshuffle|2.1032708|2.2265431|50.4701717|0.538 M|bs=24 没断过|
+
+#### **baseline**
 embed_dim = 48
-|模型|SAM|ERGAS|PSNR|参数量|SA|SE|global_kernel|第二次卷积|卷积核赋权|advanced|
-|----|----|----|----|----|----|----|----|----|----|----|
-|PSRT|2.2407495|2.4452974|50.0313946|0.538 M|-|-|-|-|-|bs=32|
-|PSRT|2.1577592|2.5400309|50.1831174|0.538 M|-|-|-|-|-|bs=24|
-|17|2.3413245|2.7532913|49.0937249|0.653 M|-|-|-|-|-|bs=32，WA1+KA|
+|模型|SAM|ERGAS|PSNR|参数量|advanced|
+|----|----|----|----|----|----|
+|PSRT|2.2407495|2.4452974|50.0313946|0.538 M|bs=32|
+|PSRT|2.1577592|2.5400309|50.1831174|0.538 M|bs=24|
+|17|2.3413245|2.7532913|49.0937249|0.653 M|bs=32，WA1+KA|
 
 
 #### **有global kernel**
@@ -143,7 +150,7 @@ embed_dim = 48
 * 卷积核赋权使用SA都不可行，(bs, 4, c\*k\*k)，生成qkv的过程参数量是$$k^4\times c^2$$。这部分我用类似SE的过程实现的
 * GELU是对B C H W做还是对B L C做
 * ConvNeXt为什么在Attention部分使用大核卷积？同理SegNeXt
-* 如果使用两个卷积替换Attention，要不要加shortcut
+* 如果使用两个卷积替换Attention，要不要加shortcut。没跑完
 * Conv-GELU-Conv结构为什么不收敛
 
 
