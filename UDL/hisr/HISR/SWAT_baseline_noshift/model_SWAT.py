@@ -54,11 +54,11 @@ class SWATnet(PatchMergeModule):
         )
         # self.w = Block(num=2, img_size=self.img_size, in_chans=34, embed_dim=32, head=8, win_size=2)
         # self.w = Block(out_num=2, inside_num=3, img_size=self.img_size, in_chans=34, embed_dim=self.embed, head=8, win_size=8)
-        self.w = Block(img_size=self.img_size, in_chans=34, dd_in=3,
-                 embed_dim=self.embed, depths=[2, 2, 2, 2, 2, 2, 2, 2, 2], num_heads=[1, 2, 4, 8, 16, 16, 8, 4, 2],
+        self.w = Block(img_size=self.img_size, in_chans=34,
+                 embed_dim=self.embed, depths=[2, 2, 2, 2, 2], num_heads=[1, 2, 4, 4, 2],
                  win_size=8, mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
-                 norm_layer=nn.LayerNorm, patch_norm=True,
+                 norm_layer=nn.LayerNorm, patch_norm=True, token_mlp='mlp',
                  dowsample=Downsample, upsample=Upsample)
         self.visual_corresponding_name = {}
         init_weights(self.conv)

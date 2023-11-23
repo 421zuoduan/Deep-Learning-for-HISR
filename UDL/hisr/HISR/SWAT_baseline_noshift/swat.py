@@ -12,21 +12,21 @@ from torch import einsum
 
 class FastLeFF(nn.Module):
     
-    def __init__(self, dim=32, hidden_dim=128, act_layer=nn.GELU,drop = 0.):
+    def __init__(self, dim=32, hidden_dim=128, act_layer=nn.GELU, drop = 0.):
         super().__init__()
 
         from torch_dwconv import depthwise_conv2d, DepthwiseConv2d
 
         self.linear1 = nn.Sequential(nn.Linear(dim, hidden_dim),
                                 act_layer())
-        self.dwconv = nn.Sequential(DepthwiseConv2d(hidden_dim, hidden_dim, kernel_size=3,stride=1,padding=1),
+        self.dwconv = nn.Sequential(DepthwiseConv2d(hidden_dim, hidden_dim, kernel_size=3, stride=1, padding=1),
                         act_layer())
         self.linear2 = nn.Sequential(nn.Linear(hidden_dim, dim))
         self.dim = dim
         self.hidden_dim = hidden_dim
 
     def forward(self, x):
-        # bs x hw x c
+        # bs × hw × c
         bs, hw, c = x.size()
         hh = int(math.sqrt(hw))
 
@@ -34,22 +34,102 @@ class FastLeFF(nn.Module):
 
         # spatial restore
         x = rearrange(x, ' b (h w) (c) -> b c h w ', h = hh, w = hh)
-        # bs,hidden_dim,32x32
-
         x = self.dwconv(x)
-
-        # flaten
         x = rearrange(x, ' b c h w -> b (h w) c', h = hh, w = hh)
-
         x = self.linear2(x)
 
+        return x
+    
+
+class eca_layer(nn.Module):
+    """Constructs a ECA module.
+    Args:
+        channel: Number of channels of the input feature map
+        k_size: Adaptive selection of kernel size
+    """
+    def __init__(self, channel, k_size=3):
+        super(eca_layer, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool2d(1)
+        self.conv = nn.Conv1d(1, 1, kernel_size=k_size, padding=(k_size - 1) // 2, bias=False) 
+        self.sigmoid = nn.Sigmoid()
+        self.channel = channel
+        self.k_size =k_size
+
+    def forward(self, x):
+        # feature descriptor on the global spatial information
+        y = self.avg_pool(x)
+
+        # Two different branches of ECA module
+        y = self.conv(y.squeeze(-1).transpose(-1, -2)).transpose(-1, -2).unsqueeze(-1)
+
+        # Multi-scale information fusion
+        y = self.sigmoid(y)
+
+        return x * y.expand_as(x)
+
+
+class eca_layer_1d(nn.Module):
+    """Constructs a ECA module.
+    Args:
+        channel: Number of channels of the input feature map
+        k_size: Adaptive selection of kernel size
+    """
+    def __init__(self, channel, k_size=3):
+        super(eca_layer_1d, self).__init__()
+        self.avg_pool = nn.AdaptiveAvgPool1d(1)
+        self.conv = nn.Conv1d(1, 1, kernel_size=k_size, padding=(k_size - 1) // 2, bias=False) 
+        self.sigmoid = nn.Sigmoid()
+        self.channel = channel
+        self.k_size =k_size
+
+    def forward(self, x):
+        # b hw c
+        # feature descriptor on the global spatial information
+        y = self.avg_pool(x.transpose(-1, -2))
+
+        # Two different branches of ECA module
+        y = self.conv(y.transpose(-1, -2))
+
+        # Multi-scale information fusion
+        y = self.sigmoid(y)
+
+        return x * y.expand_as(x)
+
+
+class SepConv2d(torch.nn.Module):
+    def __init__(self,
+                 in_channels,
+                 out_channels,
+                 kernel_size,
+                 stride=1,
+                 padding=0,
+                 dilation=1, act_layer=nn.ReLU):
+        super(SepConv2d, self).__init__()
+        self.depthwise = torch.nn.Conv2d(in_channels,
+                                         in_channels,
+                                         kernel_size=kernel_size,
+                                         stride=stride,
+                                         padding=padding,
+                                         dilation=dilation,
+                                         groups=in_channels)
+        self.pointwise = torch.nn.Conv2d(in_channels, out_channels, kernel_size=1)
+        self.act_layer = act_layer() if act_layer is not None else nn.Identity()
+        self.in_channels = in_channels
+        self.out_channels = out_channels
+        self.kernel_size = kernel_size
+        self.stride = stride
+
+    def forward(self, x):
+        x = self.depthwise(x)
+        x = self.act_layer(x)
+        x = self.pointwise(x)
         return x
 
         
 ######## Embedding for q,k,v ########
 class ConvProjection(nn.Module):
     def __init__(self, dim, heads = 8, dim_head = 64, kernel_size=3, q_stride=1, k_stride=1, v_stride=1, dropout = 0.,
-                 last_stage=False,bias=True):
+                 last_stage=False, bias=True):
 
         super().__init__()
 
@@ -76,7 +156,7 @@ class ConvProjection(nn.Module):
         v = self.to_v(attn_kv)
         k = rearrange(k, 'b (h d) l w -> b h (l w) d', h=h)
         v = rearrange(v, 'b (h d) l w -> b h (l w) d', h=h)
-        return q,k,v    
+        return q, k, v    
 
 
 class LinearProjection(nn.Module):
@@ -100,13 +180,11 @@ class LinearProjection(nn.Module):
         kv = self.to_kv(attn_kv).reshape(B_, N_kv, 2, self.heads, C // self.heads).permute(2, 0, 3, 1, 4)
         q = q[0]
         k, v = kv[0], kv[1] 
-        return q,k,v
+        return q, k, v
 
 
-#########################################
-########### window-based self-attention #############
 class WindowAttention(nn.Module):
-    def __init__(self, dim, win_size,num_heads, token_projection='linear', qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.):
+    def __init__(self, dim, win_size, num_heads, token_projection='linear', qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.):
 
         super().__init__()
         self.dim = dim
@@ -117,9 +195,9 @@ class WindowAttention(nn.Module):
 
             
         if token_projection =='conv':
-            self.qkv = ConvProjection(dim,num_heads,dim//num_heads,bias=qkv_bias)
+            self.qkv = ConvProjection(dim, num_heads, dim//num_heads, bias=qkv_bias)
         elif token_projection =='linear':
-            self.qkv = LinearProjection(dim,num_heads,dim//num_heads,bias=qkv_bias)
+            self.qkv = LinearProjection(dim, num_heads, dim//num_heads, bias=qkv_bias)
         else:
             raise Exception("Projection error!") 
         
@@ -132,7 +210,7 @@ class WindowAttention(nn.Module):
 
     def forward(self, x, attn_kv=None):
         B_, N, C = x.shape
-        q, k, v = self.qkv(x,attn_kv)
+        q, k, v = self.qkv(x, attn_kv)
         q = q * self.scale
         attn = (q @ k.transpose(-2, -1))
 
@@ -147,7 +225,7 @@ class WindowAttention(nn.Module):
 
 ########### self-attention #############
 class Attention(nn.Module):
-    def __init__(self, dim,num_heads, token_projection='linear', qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.):
+    def __init__(self, dim, num_heads, token_projection='linear', qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.):
 
         super().__init__()
         self.dim = dim
@@ -155,7 +233,7 @@ class Attention(nn.Module):
         head_dim = dim // num_heads
         self.scale = qk_scale or head_dim ** -0.5
             
-        self.qkv = LinearProjection(dim,num_heads,dim//num_heads,bias=qkv_bias)
+        self.qkv = LinearProjection(dim, num_heads, dim//num_heads, bias=qkv_bias)
         
         self.token_projection = token_projection
         self.attn_drop = nn.Dropout(attn_drop)
@@ -166,7 +244,7 @@ class Attention(nn.Module):
 
     def forward(self, x, attn_kv=None):
         B_, N, C = x.shape
-        q, k, v = self.qkv(x,attn_kv)
+        q, k, v = self.qkv(x, attn_kv)
         q = q * self.scale
         attn = (q @ k.transpose(-2, -1))
 
@@ -204,11 +282,11 @@ class Mlp(nn.Module):
 
 
 class LeFF(nn.Module):
-    def __init__(self, dim=32, hidden_dim=128, act_layer=nn.GELU,drop = 0., use_eca=False):
+    def __init__(self, dim=32, hidden_dim=128, act_layer=nn.GELU, drop = 0., use_eca=False):
         super().__init__()
         self.linear1 = nn.Sequential(nn.Linear(dim, hidden_dim),
                                 act_layer())
-        self.dwconv = nn.Sequential(nn.Conv2d(hidden_dim,hidden_dim,groups=hidden_dim,kernel_size=3,stride=1,padding=1),
+        self.dwconv = nn.Sequential(nn.Conv2d(hidden_dim, hidden_dim, groups=hidden_dim, kernel_size=3, stride=1, padding=1),
                         act_layer())
         self.linear2 = nn.Sequential(nn.Linear(hidden_dim, dim))
         self.dim = dim
@@ -216,7 +294,7 @@ class LeFF(nn.Module):
         self.eca = eca_layer_1d(dim) if use_eca else nn.Identity()
 
     def forward(self, x):
-        # bs x hw x c
+        # bs × hw × c
         bs, hw, c = x.size()
         hh = int(math.sqrt(hw))
 
@@ -224,47 +302,40 @@ class LeFF(nn.Module):
 
         # spatial restore
         x = rearrange(x, ' b (h w) (c) -> b c h w ', h = hh, w = hh)
-        # bs,hidden_dim,32x32
-
         x = self.dwconv(x)
-
-        # flaten
         x = rearrange(x, ' b c h w -> b (h w) c', h = hh, w = hh)
-
         x = self.linear2(x)
         x = self.eca(x)
 
         return x
 
 
-#########################################
-########### window operation#############
 def window_partition(x, win_size, dilation_rate=1):
     B, H, W, C = x.shape
-    if dilation_rate !=1:
+    if dilation_rate != 1:
         x = x.permute(0,3,1,2) # B, C, H, W
         assert type(dilation_rate) is int, 'dilation_rate should be a int'
-        x = F.unfold(x, kernel_size=win_size,dilation=dilation_rate,padding=4*(dilation_rate-1),stride=win_size) # B, C*Wh*Ww, H/Wh*W/Ww
-        windows = x.permute(0,2,1).contiguous().view(-1, C, win_size, win_size) # B' ,C ,Wh ,Ww
-        windows = windows.permute(0,2,3,1).contiguous() # B' ,Wh ,Ww ,C
+        x = F.unfold(x, kernel_size=win_size, dilation=dilation_rate, padding=4*(dilation_rate-1), stride=win_size) # B, C*Wh*Ww, H/Wh*W/Ww
+        windows = x.permute(0,2,1).contiguous().view(-1, C, win_size, win_size) # B', C, Wh, Ww
+        windows = windows.permute(0,2,3,1).contiguous() # B', Wh, Ww, C
     else:
         x = x.view(B, H // win_size, win_size, W // win_size, win_size, C)
-        windows = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(-1, win_size, win_size, C) # B' ,Wh ,Ww ,C
+        windows = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(-1, win_size, win_size, C) # B', Wh, Ww, C
     return windows
 
+
 def window_reverse(windows, win_size, H, W, dilation_rate=1):
-    # B' ,Wh ,Ww ,C
+    # B', Wh, Ww, C
     B = int(windows.shape[0] / (H * W / win_size / win_size))
     x = windows.view(B, H // win_size, W // win_size, win_size, win_size, -1)
-    if dilation_rate !=1:
-        x = windows.permute(0,5,3,4,1,2).contiguous() # B, C*Wh*Ww, H/Wh*W/Ww
-        x = F.fold(x, (H, W), kernel_size=win_size, dilation=dilation_rate, padding=4*(dilation_rate-1),stride=win_size)
+    if dilation_rate != 1:
+        x = windows.permute(0, 5, 3, 4, 1, 2).contiguous() # B, C*Wh*Ww, H/Wh*W/Ww
+        x = F.fold(x, (H, W), kernel_size=win_size, dilation=dilation_rate, padding=4*(dilation_rate-1), stride=win_size)
     else:
         x = x.permute(0, 1, 3, 2, 4, 5).contiguous().view(B, H, W, -1)
     return x
 
-#########################################
-# Downsample Block
+
 class Downsample(nn.Module):
     def __init__(self, in_channel, out_channel):
         super(Downsample, self).__init__()
@@ -276,7 +347,7 @@ class Downsample(nn.Module):
 
     def forward(self, x):
         B, L, C = x.shape
-        # import pdb;pdb.set_trace()
+        
         H = int(math.sqrt(L))
         W = int(math.sqrt(L))
         x = x.transpose(1, 2).contiguous().view(B, C, H, W)
@@ -305,7 +376,7 @@ class Upsample(nn.Module):
 
 # Input Projection
 class InputProj(nn.Module):
-    def __init__(self, in_channel=34, out_channel=48, kernel_size=3, stride=1, norm_layer=None,act_layer=nn.LeakyReLU):
+    def __init__(self, in_channel=34, out_channel=48, kernel_size=3, stride=1, norm_layer=None, act_layer=nn.LeakyReLU):
         super().__init__()
         self.proj = nn.Sequential(
             nn.Conv2d(in_channel, out_channel, kernel_size=3, stride=stride, padding=kernel_size//2),
@@ -328,7 +399,7 @@ class InputProj(nn.Module):
 
 # Output Projection
 class OutputProj(nn.Module):
-    def __init__(self, in_channel=64, out_channel=3, kernel_size=3, stride=1, norm_layer=None,act_layer=None):
+    def __init__(self, in_channel=64, out_channel=3, kernel_size=3, stride=1, norm_layer=None, act_layer=None):
         super().__init__()
         self.proj = nn.Sequential(
             nn.Conv2d(in_channel, out_channel, kernel_size=3, stride=stride, padding=kernel_size//2),
@@ -358,7 +429,7 @@ class OutputProj(nn.Module):
 class LeWinTransformerBlock(nn.Module):
     def __init__(self, dim, input_resolution, num_heads, win_size=8,
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0., drop_path=0.,
-                 act_layer=nn.GELU, norm_layer=nn.LayerNorm,token_projection='linear',token_mlp='leff'):
+                 act_layer=nn.GELU, norm_layer=nn.LayerNorm,token_projection='linear', token_mlp='leff'):
         super().__init__()
         self.dim = dim
         self.input_resolution = input_resolution
@@ -377,12 +448,12 @@ class LeWinTransformerBlock(nn.Module):
         self.norm2 = norm_layer(dim)
         mlp_hidden_dim = int(dim * mlp_ratio)
         if token_mlp in ['ffn','mlp']:
-            self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim,act_layer=act_layer, drop=drop) 
+            self.mlp = Mlp(in_features=dim, hidden_features=mlp_hidden_dim, act_layer=act_layer, drop=drop) 
         elif token_mlp=='leff':
-            self.mlp =  LeFF(dim,mlp_hidden_dim,act_layer=act_layer, drop=drop)
+            self.mlp =  LeFF(dim, mlp_hidden_dim, act_layer=act_layer, drop=drop)
         
         elif token_mlp=='fastleff':
-            self.mlp =  FastLeFF(dim,mlp_hidden_dim,act_layer=act_layer, drop=drop)    
+            self.mlp =  FastLeFF(dim, mlp_hidden_dim, act_layer=act_layer, drop=drop)    
         else:
             raise Exception("FFN error!") 
 
@@ -424,7 +495,7 @@ class BasicUformerLayer(nn.Module):
     def __init__(self, dim, output_dim, input_resolution, depth, num_heads, win_size,
                  mlp_ratio=4., qkv_bias=True, qk_scale=None, drop=0., attn_drop=0.,
                  drop_path=0., norm_layer=nn.LayerNorm,
-                 token_projection='linear',token_mlp='ffn'):
+                 token_projection='linear', token_mlp='ffn'):
 
         super().__init__()
         self.dim = dim
@@ -438,7 +509,7 @@ class BasicUformerLayer(nn.Module):
                                 qkv_bias=qkv_bias, qk_scale=qk_scale,
                                 drop=drop, attn_drop=attn_drop,
                                 drop_path=drop_path[i] if isinstance(drop_path, list) else drop_path,
-                                norm_layer=norm_layer,token_projection=token_projection,token_mlp=token_mlp)
+                                norm_layer=norm_layer, token_projection=token_projection, token_mlp=token_mlp)
         for i in range(depth)])
 
     def forward(self, x):
@@ -448,8 +519,8 @@ class BasicUformerLayer(nn.Module):
 
 
 class Block(nn.Module):
-    def __init__(self, img_size=256, in_chans=34, dd_in=3,
-                 embed_dim=48, depths=[2, 2, 2, 2, 2, 2, 2, 2, 2], num_heads=[1, 2, 4, 8, 16, 16, 8, 4, 2],
+    def __init__(self, img_size=256, in_chans=34,
+                 embed_dim=48, depths=[2, 2, 2, 2, 2], num_heads=[1, 2, 4, 4, 2],
                  win_size=8, mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, patch_norm=True,
@@ -467,14 +538,11 @@ class Block(nn.Module):
         self.win_size =win_size
         self.reso = img_size
         self.pos_drop = nn.Dropout(p=drop_rate)
-        # self.dd_in = dd_in
 
         # stochastic depth
         enc_dpr = [x.item() for x in torch.linspace(0, drop_path_rate, sum(depths[:self.num_enc_layers]))] 
         conv_dpr = [drop_path_rate]*depths[4]
         dec_dpr = enc_dpr[::-1]
-
-        # build layers
 
         # Input/Output
         self.input_proj = InputProj(in_channel=in_chans, out_channel=embed_dim, kernel_size=3, stride=1, act_layer=nn.LeakyReLU)
@@ -493,7 +561,7 @@ class Block(nn.Module):
                             drop=drop_rate, attn_drop=attn_drop_rate,
                             drop_path=enc_dpr[sum(depths[:0]):sum(depths[:1])],
                             norm_layer=norm_layer,
-                            token_projection=token_projection,token_mlp=token_mlp)
+                            token_projection=token_projection, token_mlp=token_mlp)
         self.dowsample_0 = dowsample(embed_dim, embed_dim*2)
         self.encoderlayer_1 = BasicUformerLayer(dim=embed_dim*2,
                             output_dim=embed_dim*2,
@@ -507,7 +575,7 @@ class Block(nn.Module):
                             drop=drop_rate, attn_drop=attn_drop_rate,
                             drop_path=enc_dpr[sum(depths[:1]):sum(depths[:2])],
                             norm_layer=norm_layer,
-                            token_projection=token_projection,token_mlp=token_mlp)
+                            token_projection=token_projection, token_mlp=token_mlp)
         self.dowsample_1 = dowsample(embed_dim*2, embed_dim*4)
 
         # Bottleneck
@@ -523,7 +591,7 @@ class Block(nn.Module):
                             drop=drop_rate, attn_drop=attn_drop_rate,
                             drop_path=conv_dpr,
                             norm_layer=norm_layer,
-                            token_projection=token_projection,token_mlp=token_mlp)
+                            token_projection=token_projection, token_mlp=token_mlp)
 
         # Decoder
         self.upsample_1 = upsample(embed_dim*4, embed_dim*2)
@@ -531,29 +599,29 @@ class Block(nn.Module):
                             output_dim=embed_dim*4,
                             input_resolution=(img_size // 2,
                                                 img_size // 2),
-                            depth=depths[7],
-                            num_heads=num_heads[7],
+                            depth=depths[3],
+                            num_heads=num_heads[3],
                             win_size=win_size,
                             mlp_ratio=self.mlp_ratio,
                             qkv_bias=qkv_bias, qk_scale=qk_scale,
                             drop=drop_rate, attn_drop=attn_drop_rate,
-                            drop_path=dec_dpr[sum(depths[5:7]):sum(depths[5:8])],
+                            drop_path=dec_dpr[sum(depths[2:2]):sum(depths[2:3])],
                             norm_layer=norm_layer,
-                            token_projection=token_projection,token_mlp=token_mlp)
+                            token_projection=token_projection, token_mlp=token_mlp)
         self.upsample_0 = upsample(embed_dim*4, embed_dim)
         self.decoderlayer_0 = BasicUformerLayer(dim=embed_dim*2,
                             output_dim=embed_dim*2,
                             input_resolution=(img_size,
                                                 img_size),
-                            depth=depths[8],
-                            num_heads=num_heads[8],
+                            depth=depths[4],
+                            num_heads=num_heads[4],
                             win_size=win_size,
                             mlp_ratio=self.mlp_ratio,
                             qkv_bias=qkv_bias, qk_scale=qk_scale,
                             drop=drop_rate, attn_drop=attn_drop_rate,
-                            drop_path=dec_dpr[sum(depths[5:8]):sum(depths[5:9])],
+                            drop_path=dec_dpr[sum(depths[2:3]):sum(depths[2:4])],
                             norm_layer=norm_layer,
-                            token_projection=token_projection,token_mlp=token_mlp)
+                            token_projection=token_projection, token_mlp=token_mlp)
 
         self.apply(self._init_weights)
 
@@ -583,7 +651,7 @@ class Block(nn.Module):
 
         #Decoder
         up1 = self.upsample_1(conv)
-        deconv1 = torch.cat([up1, conv1],-1)
+        deconv1 = torch.cat([up1, conv1], -1)
         deconv1 = self.decoderlayer_1(deconv1)
 
         up0 = self.upsample_0(deconv1)
@@ -592,7 +660,6 @@ class Block(nn.Module):
 
         # Output Projection
         y = self.output_proj(deconv0)
-        # return x + y if self.dd_in ==3 else y
         return y
 
 
@@ -600,7 +667,7 @@ if __name__ == "__main__":
     input_size = 256
     arch = Block
     depths=[2, 2, 2, 2, 2, 2, 2, 2, 2]
-    model_restoration = Block(img_size=input_size, embed_dim=16,depths=depths,
+    model_restoration = Block(img_size=input_size, embed_dim=16, depths=depths,
                  win_size=8, mlp_ratio=4., token_projection='linear', token_mlp='leff')
     print(model_restoration)
     # from ptflops import get_model_complexity_info
