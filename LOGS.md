@@ -64,6 +64,27 @@ module放在stage最后:
 
 
 
+### SWAT的模型
+
+embed_dim = 32
+
+|模型|SAM|ERGAS|PSNR|参数量|训练位置|时间|
+|----|----|----|----|----|----|----|
+|SWAT_baseline||||1.308 M|||
+|SWAT_baseline_noshift||||1.269 M|||
+|SWATv1||||1.964 M|||
+
+
+embed_dim = 48
+
+|模型|SAM|ERGAS|PSNR|参数量|训练位置|时间|
+|----|----|----|----|----|----|----|
+|SWAT_baseline||||2.888 M|||
+|SWAT_baseline_noshift||||2.833 M|||
+|SWATv1||||4.394 M|||
+
+
+
  
 ## 训练说明（笔记本4060）
 
@@ -178,7 +199,7 @@ PSRT设置bs=32，lr=1e-4，embed_dim=48
 |PSRT_KAv1(embed_Dim=48)|2.2844245|2.5096108|49.8647584|0.665 M|2号机 UDL|20231012|
 
 
-
+### PSRT模型改进的测试结果
 
 
 
