@@ -762,15 +762,13 @@ class Block(nn.Module):
                  embed_dim=48, depths=[2, 2, 2, 2, 2], num_heads=[1, 2, 4, 4, 2],
                  win_size=8, mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
-                 norm_layer=nn.LayerNorm, patch_norm=True,
-                 token_projection='linear', token_mlp='leff',
+                 norm_layer=nn.LayerNorm, token_projection='linear', token_mlp='leff',
                  dowsample=Downsample, upsample=Upsample, **kwargs):
         super().__init__()
 
         self.num_enc_layers = len(depths)//2
         self.num_dec_layers = len(depths)//2
         self.embed_dim = embed_dim
-        self.patch_norm = patch_norm
         self.mlp_ratio = mlp_ratio
         self.token_projection = token_projection
         self.mlp = token_mlp
