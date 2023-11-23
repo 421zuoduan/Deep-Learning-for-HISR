@@ -1,9 +1,5 @@
 from UDL.hisr.common.main_hisr import main
 from UDL.Basis.auxiliary import set_random_seed
-# from UDL.hisr.HISR.Bidi_final.option_bidi import cfg as args
-# from UDL.hisr.HISR.Bidi_final.model_SR import build
-# from UDL.hisr.HISR.Bidi.option_bidi import cfg as args
-# from UDL.hisr.HISR.Bidi.model_SR import build
 # from UDL.hisr.HISR.PSRT.option_hisr_PSRT import cfg as args
 # from UDL.hisr.HISR.PSRT.model_PSRT import build
 # from UDL.hisr.HISR.PSRT_kernelattentionv1.option_hisr_PSRT import cfg as args
