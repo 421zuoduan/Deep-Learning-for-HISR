@@ -2,10 +2,10 @@ from UDL.hisr.common.main_hisr import main
 from UDL.Basis.auxiliary import set_random_seed
 # from UDL.hisr.HISR.SWAT_baseline.option_hisr_SWAT import cfg as args
 # from UDL.hisr.HISR.SWAT_baseline.model_SWAT import build
-from UDL.hisr.HISR.SWAT_baseline_noshift.option_hisr_SWAT import cfg as args
-from UDL.hisr.HISR.SWAT_baseline_noshift.model_SWAT import build
-# from UDL.hisr.HISR.SWATv1.option_hisr_SWAT import cfg as args
-# from UDL.hisr.HISR.SWATv1.model_SWAT import build
+# from UDL.hisr.HISR.SWAT_baseline_noshift.option_hisr_SWAT import cfg as args
+# from UDL.hisr.HISR.SWAT_baseline_noshift.model_SWAT import build
+from UDL.hisr.HISR.SWATv1.option_hisr_SWAT import cfg as args
+from UDL.hisr.HISR.SWATv1.model_SWAT import build
 
 
 

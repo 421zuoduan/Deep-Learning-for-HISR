@@ -66,16 +66,16 @@ module放在stage最后:
 
 ### SWAT的模型
 
-embed_dim = 32
+embed_dim = 32，bs = 32
 
 |模型|SAM|ERGAS|PSNR|参数量|训练位置|时间|
 |----|----|----|----|----|----|----|
 |SWAT_baseline||||1.308 M|||
-|SWAT_baseline_noshift||||1.269 M|||
-|SWATv1||||1.964 M|||
+|SWAT_baseline_noshift||||1.269 M|6号机 UDL|20231124|
+|SWATv1||||1.964 M|6号机 UDLv2|20231124|
 
 
-embed_dim = 48
+embed_dim = 48，bs = 32
 
 |模型|SAM|ERGAS|PSNR|参数量|训练位置|时间|
 |----|----|----|----|----|----|----|
@@ -85,13 +85,12 @@ embed_dim = 48
 
 
 
+
+
  
 ## 训练说明（笔记本4060）
 
 * 20231009：跑BDT_KAv4，凌晨。运行768epoch，后续放在6号机上运行
-
-
-
 
 
 ## 测试结果
