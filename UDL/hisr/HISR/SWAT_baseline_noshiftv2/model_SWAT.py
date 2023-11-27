@@ -11,7 +11,7 @@ import math
 import torch
 from torch import optim
 from UDL.Basis.criterion_metrics import *
-from UDL.hisr.HISR.SWAT_baseline_noshift.swat import *
+from UDL.hisr.HISR.SWAT_baseline_noshiftv2.swat import *
 from UDL.pansharpening.common.evaluate import analysis_accu
 from UDL.Basis.module import PatchMergeModule
 from UDL.Basis.pytorch_msssim.cal_ssim import SSIM
@@ -48,14 +48,21 @@ class SWATnet(PatchMergeModule):
         self.args = args
         self.img_size = 64
         self.in_channels = 31
-        self.embed = 48
+        self.embed = 32
         self.conv = nn.Sequential(
             nn.Conv2d(self.embed, self.in_channels, 3, 1, 1), nn.LeakyReLU(0.2, True)
         )
         # self.w = Block(num=2, img_size=self.img_size, in_chans=34, embed_dim=32, head=8, win_size=2)
         # self.w = Block(out_num=2, inside_num=3, img_size=self.img_size, in_chans=34, embed_dim=self.embed, head=8, win_size=8)
+        # self.w = Block(img_size=self.img_size, in_chans=34,
+        #          embed_dim=self.embed, depths=[2, 2, 2, 2, 2], num_heads=[1, 2, 4, 4, 2],
+        #          win_size=8, mlp_ratio=4., qkv_bias=True, qk_scale=None,
+        #          drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
+        #          norm_layer=nn.LayerNorm, patch_norm=True, token_mlp='mlp',
+        #          dowsample=Downsample, upsample=Upsample)
+
         self.w = Block(img_size=self.img_size, in_chans=34,
-                 embed_dim=self.embed, depths=[2, 2, 2, 2, 2], num_heads=[1, 2, 4, 4, 2],
+                 embed_dim=self.embed, depths=[2, 2, 2, 2, 2], num_heads=[4, 8, 16, 16, 8],
                  win_size=8, mlp_ratio=4., qkv_bias=True, qk_scale=None,
                  drop_rate=0., attn_drop_rate=0., drop_path_rate=0.1,
                  norm_layer=nn.LayerNorm, patch_norm=True, token_mlp='mlp',

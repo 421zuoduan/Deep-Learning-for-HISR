@@ -11,7 +11,7 @@ script_path = os.path.dirname(os.path.dirname(__file__))
 root_dir = script_path.split(cfg.task)[0]
 print(root_dir)
 parser = argparse.ArgumentParser(description='PyTorch derain Training')
-parser.add_argument('--name', default='SWAT_baseline_noshift', type=str)
+parser.add_argument('--name', default='SWAT_baseline_noshiftv2', type=str)
 parser.add_argument('--test_epoch', default='2001', type=int)
 
 # model_path = ''

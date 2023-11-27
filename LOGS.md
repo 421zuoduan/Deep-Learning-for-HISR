@@ -70,11 +70,13 @@ embed_dim = 32，bs = 32
 
 |模型|SAM|ERGAS|PSNR|参数量|训练位置|时间|
 |----|----|----|----|----|----|----|
-|SWAT_baseline|1.9349307|0.9883768|52.2688994|1.308 M|2号机 UDLv2|20231124|
-|SWAT_baseline_noshift|1.9214245|0.9979192|52.1993457|1.269 M|6号机 UDL 改到 2号机 UDL|20231124|
-|SWAT_baseline_noshiftv2||||1.072 M|6号机 UDLv2|20231126|
+|SWAT_baseline|1.9349307|0.9883768|52.2688994|1.308 M|2号机 UDLv2|20231124 少头|
+|SWAT_baseline_noshift|1.9214245|0.9979192|52.1993457|1.269 M|6号机 UDL 改到 2号机 UDL|20231124 少头|
+|SWAT_baseline_noshift||||1.269 M|6号机 UDL|20231127 多头|
+|SWAT_baseline_noshiftv2||||1.072 M|6号机 UDLv2|20231126 多头|
 |SWATv1|2.6140107|1.5705872|49.5414508|1.964 M|6号机 UDLv2 改到 2号机 UDL nomachine|20231124 少头|
-|SWATv1||||1.964 M|6号机 UDLv2 改到 2号机 UDL nomachine|20231124 多头|
+|SWATv1|2.0587468|1.1329675|51.4186786|1.964 M|6号机 UDLv2 改到 2号机 UDL nomachine|20231124 多头|
+|SWATv1||||1.964 M|2号机 UDL|20231126 8头|
 |SWATv2||||1.633 M|2号机 UDLv3|20231126 多头|
 
 embed_dim = 48，bs = 32
