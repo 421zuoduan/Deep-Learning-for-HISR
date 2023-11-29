@@ -171,7 +171,7 @@ embed_dim = 32，bs = 32
 
 20231127
 
-* SWAT的U-Net结构是Uformer式还是Restormer式
+* SWAT的U-Net结构是Uformer式还是Restormer式？
 * 大核深度可分离卷积的有效性，会不会3\*3depthwise比7\*7depthwise要更好？
 * 多头注意力机制的个数
 * 论文如何动手开始写？
