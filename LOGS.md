@@ -68,20 +68,31 @@ module放在stage最后:
 
 embed_dim = 32，bs = 32
 
+SWAT_baseline：Uformer架构，depth[2, 2, 2, 2, 2]
+SWAT_baseline_noshift：Uformer架构，depth[2, 2, 2, 2, 2]
+SWAT_baseline_noshiftv2：Restormer架构，depth[2, 2, 2, 2, 2]
+SWAT_baseline_noshiftv3：Uformer架构，depth[2, 2, 4, 2, 2]
+SWATv1：基于baseline_noshift加KA
+SWATv2：基于baseline_noshiftv2加KA
+SWATv3：基于baseline_noshiftv3加KA
+
+SWAT_baselinev2：SwinIR架构，depth[2, 2, 2, 2, 2]
+SWAT_baseline_noshiftv4：基于SWAT_baselinev2, 去掉了shift
+SWATv4: 基于SWAT_baseline_noshiftv4, 加上了kernelattention
+
 |模型|SAM|ERGAS|PSNR|参数量|训练位置|时间|
 |----|----|----|----|----|----|----|
-|SWAT_baseline|1.9349307|0.9883768|52.2688994|1.308 M|2号机 UDLv2|20231124 少头|
-|SWAT_baseline_noshift|1.9214245|0.9979192|52.1993457|1.269 M|6号机 UDL 改到 2号机 UDL|20231124 少头|
-|SWAT_baseline_noshift|1.9488015|0.9987131|52.1434194|1.269 M|6号机 UDL|20231127 多头|
-|SWAT_baseline_noshiftv2|1.9624378|1.0156476|52.0306768|1.072 M|6号机 UDLv2|20231126 多头|
-|SWAT_baseline_noshiftv3||||1.666 M|6号机 UDLv2|20231129 多头深depth|
-|SWATv1|2.6140107|1.5705872|49.5414508|1.964 M|6号机 UDLv2 改到 2号机 UDL nomachine|20231124 少头|
-|SWATv1|2.0587468|1.1329675|51.4186786|1.964 M|6号机 UDLv2 改到 2号机 UDL nomachine|20231124 多头|
+|SWAT_baseline|1.9349307|0.9883768|52.2688994|1.308 M|2号机 UDLv2|20231124 [1, 2, 4, 4, 2]|
+|SWAT_baseline_noshift|1.9214245|0.9979192|52.1993457|1.269 M|6号机 UDL 改到 2号机 UDL|20231124 [1, 2, 4, 4, 2]|
+|SWAT_baseline_noshift|1.9488015|0.9987131|52.1434194|1.269 M|6号机 UDL|20231127 [4, 8, 16, 16, 8]|
+|SWAT_baseline_noshiftv2|1.9624378|1.0156476|52.0306768|1.072 M|6号机 UDLv2|20231126 [4, 8, 16, 16, 8]|
+|SWAT_baseline_noshiftv3|2.0066910|1.0203953|51.9469310|1.666 M|6号机 UDLv2|20231129 多头深depth|
+|SWATv1|2.6140107|1.5705872|49.5414508|1.964 M|6号机 UDLv2 改到 2号机 UDL nomachine|20231124 1头减少|
+|SWATv1|2.0587468|1.1329675|51.4186786|1.964 M|6号机 UDLv2 改到 2号机 UDL nomachine|20231124 4头增加|
 |SWATv1|2.0702945|1.4042612|50.8808126|1.964 M|2号机 UDL|20231126 8头不变|
-|SWATv1||||1.964 M|2号机 UDL|20231126 8头增加|
-|SWATv2|2.1123183|1.4603989|50.5582938|1.633 M|2号机 UDLv3|20231126 多头|
-|SWATv3||||2.631 M|6号机 UDL|20231129 多头深depth|
-
+|SWATv1|2.0536631|1.4684086|50.8439539|1.964 M|2号机 UDL|20231126 8头增加|
+|SWATv2|2.1123183|1.4603989|50.5582938|1.633 M|2号机 UDLv3|20231126 4头增加|
+|SWATv3|2.0416935|1.2540732|51.0746963|2.631 M|6号机 UDL|20231129 4头增加深depth|
 
 embed_dim = 48，bs = 32
 

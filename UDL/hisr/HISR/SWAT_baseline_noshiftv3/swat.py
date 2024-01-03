@@ -542,7 +542,7 @@ class Block(nn.Module):
         dec_dpr = enc_dpr[::-1]
 
         # Input/Output
-        self.input_proj = InputProj(in_channel=in_chans, out_channel=embed_dim, kernel_size=3, stride=1, act_layer=nn.LeakyReLU)
+        # self.input_proj = InputProj(in_channel=in_chans, out_channel=embed_dim, kernel_size=3, stride=1, act_layer=nn.LeakyReLU)
         self.output_proj = OutputProj(in_channel=2*embed_dim, out_channel=embed_dim, kernel_size=3, stride=1)
         
         # Encoder
@@ -634,7 +634,7 @@ class Block(nn.Module):
     def forward(self, H, W, x):
 
         # Input Projection
-        y = self.input_proj(x)
+        # y = self.input_proj(x)
         # x = x.permute(0,2,3,1).reshape(x.shape[0], -1, x.shape[1])
         y = self.pos_drop(y)
         #Encoder

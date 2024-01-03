@@ -66,11 +66,13 @@ from UDL.Basis.auxiliary import set_random_seed
 # from UDL.hisr.HISR.PSRT_KAv20_noshuffle.model_PSRT import build
 # from UDL.hisr.HISR.PSRT_KAv21_noshuffle.option_hisr_PSRT import cfg as args
 # from UDL.hisr.HISR.PSRT_KAv21_noshuffle.model_PSRT import build
+from UDL.hisr.HISR.PSRT_KAv22_noshuffle.option_hisr_PSRT import cfg as args
+from UDL.hisr.HISR.PSRT_KAv22_noshuffle.model_PSRT import build
 
 # from UDL.hisr.HISR.SWATv1.option_hisr_SWAT import cfg as args
 # from UDL.hisr.HISR.SWATv1.model_SWAT import build
-from UDL.hisr.HISR.SWAT_baseline.option_hisr_SWAT import cfg as args
-from UDL.hisr.HISR.SWAT_baseline.model_SWAT import build
+# from UDL.hisr.HISR.SWAT_baseline.option_hisr_SWAT import cfg as args
+# from UDL.hisr.HISR.SWAT_baseline.model_SWAT import build
 
 
 
