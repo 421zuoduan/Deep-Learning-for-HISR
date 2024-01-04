@@ -404,6 +404,7 @@ class SwinTransformerBlock(nn.Module):
         self.num_heads = num_heads
         self.window_size = window_size
         self.mlp_ratio = mlp_ratio
+        self.shift_size = shift_size
         branch_num_heads = num_heads // 2
 
         self.norm1 = norm_layer(dim)

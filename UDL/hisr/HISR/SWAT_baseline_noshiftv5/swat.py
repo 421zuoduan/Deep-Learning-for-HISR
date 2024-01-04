@@ -635,15 +635,15 @@ class Block(nn.Module):
         self.norm = norm_layer(self.num_features)
 
         # build the last conv layer in deep feature extraction
-        if resi_connection == '1conv':
-            self.conv_after_body = nn.Conv2d(embed_dim, embed_dim, 3, 1, 1)
-        elif resi_connection == '3conv':
-            # to save parameters and memory
-            self.conv_after_body = nn.Sequential(nn.Conv2d(embed_dim, embed_dim // 4, 3, 1, 1),
-                                                 nn.LeakyReLU(negative_slope=0.2, inplace=True),
-                                                 nn.Conv2d(embed_dim // 4, embed_dim // 4, 1, 1, 0),
-                                                 nn.LeakyReLU(negative_slope=0.2, inplace=True),
-                                                 nn.Conv2d(embed_dim // 4, embed_dim, 3, 1, 1))
+        # if resi_connection == '1conv':
+        #     self.conv_after_body = nn.Conv2d(embed_dim, embed_dim, 3, 1, 1)
+        # elif resi_connection == '3conv':
+        #     # to save parameters and memory
+        #     self.conv_after_body = nn.Sequential(nn.Conv2d(embed_dim, embed_dim // 4, 3, 1, 1),
+        #                                          nn.LeakyReLU(negative_slope=0.2, inplace=True),
+        #                                          nn.Conv2d(embed_dim // 4, embed_dim // 4, 1, 1, 0),
+        #                                          nn.LeakyReLU(negative_slope=0.2, inplace=True),
+        #                                          nn.Conv2d(embed_dim // 4, embed_dim, 3, 1, 1))
 
         #####################################################################################################
         ################################ 3, high quality image reconstruction ################################
@@ -721,7 +721,8 @@ class Block(nn.Module):
 
 
         x = self.conv_first(x)
-        x = self.conv_after_body(self.forward_features(x)) + x
+        x = self.forward_features(x)
+        # x = self.conv_after_body(self.forward_features(x)) + x
 
         # if self.upsampler == 'pixelshuffle':
         #     # for classical SR
