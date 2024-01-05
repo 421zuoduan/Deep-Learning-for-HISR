@@ -83,12 +83,12 @@ SWATv4: 基于SWAT_baseline_noshiftv4, 加上了kernelattention
 |模型|SAM|ERGAS|PSNR|参数量|训练位置|时间|
 |----|----|----|----|----|----|----|
 |SWAT_baseline|1.9349307|0.9883768|52.2688994|1.308 M|2号机 UDLv2|20231124 [1, 2, 4, 4, 2]|
-|SWAT_baseline||||0.613 M|2号机 UDL|20240103|
+|SWAT_baselinev2|2.0023886|1.0448825|51.7628947|0.613 M|2号机 UDL|20240103|
 |SWAT_baseline_noshift|1.9214245|0.9979192|52.1993457|1.269 M|6号机 UDL 改到 2号机 UDL|20231124 [1, 2, 4, 4, 2]|
 |SWAT_baseline_noshift|1.9488015|0.9987131|52.1434194|1.269 M|6号机 UDL|20231127 [4, 8, 16, 16, 8]|
 |SWAT_baseline_noshiftv2|1.9624378|1.0156476|52.0306768|1.072 M|6号机 UDLv2|20231126 [4, 8, 16, 16, 8]|
 |SWAT_baseline_noshiftv3|2.0066910|1.0203953|51.9469310|1.666 M|6号机 UDLv2|20231129 多头深depth|
-|SWAT_baseline_noshiftv4||||0.613 M|6号机 UDLv2|20240103|
+|SWAT_baseline_noshiftv4|2.0467095|1.0404192|51.8539654|0.613 M|6号机 UDLv2|20240103|
 |SWAT_baseline_noshiftv5||||0.593 M|2号机 UDLv2|20240104|
 |SWATv1|2.6140107|1.5705872|49.5414508|1.964 M|6号机 UDLv2 改到 2号机 UDL nomachine|20231124 1头减少|
 |SWATv1|2.0587468|1.1329675|51.4186786|1.964 M|6号机 UDLv2 改到 2号机 UDL nomachine|20231124 4头增加|
@@ -101,10 +101,11 @@ SWATv4: 基于SWAT_baseline_noshiftv4, 加上了kernelattention
 
 
 SWAT_baseline_noshiftv4     1000epoch SAM: 1.9496609 (avg:2.2695953)  ERGAS: 0.9568591 (avg:1.1029562)  PSNR: 47.8122940 (avg:51.1039127)
-SWATv4 2000epoch 51.1216    1000epoch SAM: 2.2170603 (avg:2.3404494)  ERGAS: 1.1031498 (avg:1.2163127)  PSNR: 46.9196053 (avg:50.5814847
+SWATv4 2000epoch 51.1216    1000epoch SAM: 2.2170603 (avg:2.3404494)  ERGAS: 1.1031498 (avg:1.2163127)  PSNR: 46.9196053 (avg:50.5814847)
 
+SWAT_baselinev2             1000epoch SAM: 1.9032513 (avg:2.1232411)  ERGAS: 0.9447871 (avg:1.0914433)  PSNR: 47.9477692 (avg:51.3160130) 
 
-
+SWAT_baseline_noshiftv5     1000epoch SAM: 2.1689320 (avg:2.5721015)  ERGAS: 1.0374856 (avg:1.1901029)  PSNR: 47.1076431 (avg:50.4636959) 
 
 embed_dim = 48，bs = 32
 

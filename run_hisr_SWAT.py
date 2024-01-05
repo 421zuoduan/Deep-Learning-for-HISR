@@ -6,16 +6,21 @@ from UDL.Basis.auxiliary import set_random_seed
 # from UDL.hisr.HISR.SWAT_baselinev2.model_SWAT import build
 # from UDL.hisr.HISR.SWAT_baseline_noshift.option_hisr_SWAT import cfg as args
 # from UDL.hisr.HISR.SWAT_baseline_noshift.model_SWAT import build
-from UDL.hisr.HISR.SWAT_baseline_noshiftv4.option_hisr_SWAT import cfg as args
-from UDL.hisr.HISR.SWAT_baseline_noshiftv4.model_SWAT import build
+# from UDL.hisr.HISR.SWAT_baseline_noshiftv4.option_hisr_SWAT import cfg as args
+# from UDL.hisr.HISR.SWAT_baseline_noshiftv4.model_SWAT import build
 # from UDL.hisr.HISR.SWATv1.option_hisr_SWAT import cfg as args
 # from UDL.hisr.HISR.SWATv1.model_SWAT import build
 # from UDL.hisr.HISR.SWATv2.option_hisr_SWAT import cfg as args
 # from UDL.hisr.HISR.SWATv2.model_SWAT import build
 # from UDL.hisr.HISR.SWATv3.option_hisr_SWAT import cfg as args
 # from UDL.hisr.HISR.SWATv3.model_SWAT import build
-from UDL.hisr.HISR.SWATv4.option_hisr_SWAT import cfg as args
-from UDL.hisr.HISR.SWATv4.model_SWAT import build
+# from UDL.hisr.HISR.SWATv4.option_hisr_SWAT import cfg as args
+# from UDL.hisr.HISR.SWATv4.model_SWAT import build
+
+# from UDL.hisr.HISR.Swin_baseline.option_hisr_Swin import cfg as args
+# from UDL.hisr.HISR.Swin_baseline.model_Swin import build
+from UDL.hisr.HISR.Swinv1.option_hisr_Swin import cfg as args
+from UDL.hisr.HISR.Swinv1.model_Swin import build
 
 
 
