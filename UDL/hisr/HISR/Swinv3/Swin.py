@@ -592,8 +592,8 @@ class BasicLayer(nn.Module):
         # build blocks
         self.blocks = nn.ModuleList([
             SwinTransformerBlock(dim=dim, input_resolution=input_resolution,
-                                 num_heads=num_heads, window_size=window_size,
-                                 shift_size=0 if (i % 2 == 0) else window_size // 2,
+                                 num_heads=num_heads, window_size=window_size // (2 ** i) if window_size // (2 ** i) >1 else 2,
+                                 shift_size=0 if (i % 2 == 0) else window_size // (2 ** (i+1)),
                                  mlp_ratio=mlp_ratio,
                                  qkv_bias=qkv_bias, qk_scale=qk_scale,
                                  drop=drop, attn_drop=attn_drop,

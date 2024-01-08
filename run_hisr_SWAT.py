@@ -19,8 +19,14 @@ from UDL.Basis.auxiliary import set_random_seed
 
 # from UDL.hisr.HISR.Swin_baseline.option_hisr_Swin import cfg as args
 # from UDL.hisr.HISR.Swin_baseline.model_Swin import build
-from UDL.hisr.HISR.Swinv1.option_hisr_Swin import cfg as args
-from UDL.hisr.HISR.Swinv1.model_Swin import build
+# from UDL.hisr.HISR.Swinv1.option_hisr_Swin import cfg as args
+# from UDL.hisr.HISR.Swinv1.model_Swin import build
+# from UDL.hisr.HISR.Swin_baselinev2.option_hisr_Swin import cfg as args
+# from UDL.hisr.HISR.Swin_baselinev2.model_Swin import build
+# from UDL.hisr.HISR.Swin_baselinev3.option_hisr_Swin import cfg as args
+# from UDL.hisr.HISR.Swin_baselinev3.model_Swin import build
+from UDL.hisr.HISR.Swinv3.option_hisr_Swin import cfg as args
+from UDL.hisr.HISR.Swinv3.model_Swin import build
 
 
 

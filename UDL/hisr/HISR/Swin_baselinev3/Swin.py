@@ -12,8 +12,6 @@ import torch.nn as nn
 import torch.utils.checkpoint as checkpoint
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 from einops import rearrange, repeat
-import math
-import torch.nn.functional as F
 
 
 class Mlp(nn.Module):
@@ -140,233 +138,6 @@ class WindowAttention(nn.Module):
         # x = self.proj(x)
         flops += N * self.dim * self.dim
         return flops
-    
-
-def ka_window_partition(x, window_size):
-    """
-    input: (B, H*W, C)
-    output: (B, num_windows*C, window_size, window_size)
-    """
-    B, L, C = x.shape
-    H, W = int(math.sqrt(L)), int(math.sqrt(L))
-    x = x.reshape(B, H // window_size, window_size, W // window_size, window_size, C)
-    windows = x.permute(0, 1, 3, 5, 2, 4).contiguous().view(B, -1, window_size, window_size)
-    return windows
-
-
-def ka_window_reverse(windows, window_size, H, W):
-    """
-    input: (B, num_windows*C, window_size, window_size)
-    output: (B, H*W, C)
-    """
-    B = windows.shape[0]
-    x = windows.contiguous().view(B, H // window_size, W // window_size, -1, window_size, window_size)
-    x = x.permute(0, 1, 4, 2, 5, 3).contiguous().view(B, H*W, -1)
-    return x
-
-
-class SELayer_KA(nn.Module):
-    def __init__(self, channel):
-        super().__init__()
-        self.se = nn.Sequential(nn.AdaptiveAvgPool2d((1, 1)),
-                                nn.Conv2d(channel, channel // 16 if channel >= 64 else channel, kernel_size=1),
-                                nn.ReLU(),
-                                nn.Conv2d(channel // 16 if channel >= 64 else channel, channel, kernel_size=1),
-                                nn.Sigmoid(), )
-
-    def forward(self, x):
-        channel_weight = self.se(x)
-        x = x * channel_weight
-        return x
-    
-
-class WinKernel_Reweight(nn.Module):
-    def __init__(self, dim, win_num=4):
-        super().__init__()
-        
-        self.dim = dim
-        self.win_num = win_num
-        self.pooling = nn.AdaptiveAvgPool2d((1, 1))
-        self.downchannel = nn.Conv2d(win_num*dim, win_num, kernel_size=1, groups=win_num)
-        self.linear1 = nn.Conv2d(win_num, win_num*4, kernel_size=1)
-        self.gelu = nn.GELU()
-        self.linear2 = nn.Conv2d(win_num*4, win_num, kernel_size=1)
-        self.sigmoid = nn.Sigmoid()
-
-    def forward(self, kernels, windows):
-        """
-        kernels:  win_num*c, c, k ,k
-        windows:  bs, win_num*c, wh, ww
-        """
-
-        B = windows.shape[0]
-
-        # win_weight:  bs, win_num*c, 1, 1
-        win_weight = self.pooling(windows)
-
-        # win_weight:  bs, win_num, 1, 1
-        win_weight = self.downchannel(win_weight)
-
-        win_weight = self.linear1(win_weight)
-        win_weight = win_weight.permute(0, 2, 3, 1).reshape(B, 1, -1)
-        win_weight = self.gelu(win_weight)
-        win_weight = win_weight.transpose(1, 2).reshape(B, -1, 1, 1)
-        win_weight = self.linear2(win_weight)
-        # weight:  bs, win_num, 1, 1, 1, 1
-        weight = self.sigmoid(win_weight).unsqueeze(-1).unsqueeze(-1)
-
-        # kernels:  1, win_num, c, c, k, k
-        kernels = kernels.reshape(self.win_num, self.dim, self.dim, kernels.shape[-2], kernels.shape[-1]).unsqueeze(0)
-
-        # kernels:  bs, win_num, c, c, k, k
-        kernels = kernels.repeat(B, 1, 1, 1, 1, 1)
-
-        # kernels:  bs, win_num, c, c, k, k
-        kernels = weight * kernels
-
-        # kernels:  bs*win_num*c, c, k, k
-        kernels = kernels.reshape(-1, self.dim, kernels.shape[-2], kernels.shape[-1])
-
-        return kernels
-    
-
-class ConvLayer(nn.Module):
-    def __init__(self, dim, kernel_size=3, stride=1, padding=1, groups=4, win_num=4, k_in=False):
-        super().__init__()
-
-        self.dim = dim
-        self.win_num = win_num
-        self.kernel_size = kernel_size
-        self.stride = stride
-        self.padding = padding
-        self.groups = groups
-        if not k_in:
-            self.params = nn.Parameter(torch.randn(win_num*dim, dim, kernel_size, kernel_size), requires_grad=True)
-        else:
-            self.params = None
-
-    def forward(self, x, kernels=None, groups=None):
-        '''
-        x:  bs, win_num*c, wh, ww
-        kernels:  None
-
-        or
-
-        x:  bs, win_num*c, h, w
-        kernels:  c*win_num, c, k_size, k_size
-        '''
-
-        if kernels is None:
-            x = F.conv2d(x, self.params, stride=self.stride, padding=self.padding, groups=self.groups)
-        else:
-            x = F.conv2d(x, kernels, stride=self.stride, padding=self.padding, groups=groups)
-
-        return x, self.params
-
-
-class KernelAttention(nn.Module):
-    """
-    第一个分组卷积产生核，然后计算核的自注意力，调整核，第二个分组卷积产生输出，skip connection
-    
-    Args:
-        dim: 输入通道数
-        window_size: 窗口大小
-        num_heads: 注意力头数
-        qkv_bias: 是否使用偏置
-        qk_scale: 缩放因子
-        attn_drop: 注意力dropout
-        proj_drop: 输出dropout
-        ka_window_size: kernel attention window size
-        kernel_size: 卷积核大小
-        stride: 卷积步长
-        padding: 卷积padding
-    """
-
-    def __init__(self, dim, input_resolution, num_heads, ka_win_num=4, kernel_size=3, stride=1, padding=1, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.):
-        super().__init__()
-
-        self.dim = dim
-        self.input_resolution = input_resolution
-        self.num_heads = num_heads
-        self.win_num = ka_win_num
-        self.stride = stride
-        self.padding = padding
-        self.kernel_size = kernel_size
-
-        self.scale = qk_scale or (dim//num_heads) ** (-0.5)
-        self.window_size = int(input_resolution // math.sqrt(ka_win_num))
-
-        self.num_layers = self.win_num
-        self.convlayer1 = ConvLayer(dim, kernel_size, stride, padding, groups=ka_win_num, k_in=False)
-        self.wink_reweight = WinKernel_Reweight(dim, win_num=ka_win_num)
-        self.gk_generation = nn.Conv2d(self.win_num*self.dim, self.dim, kernel_size=1, stride=1, padding=0)
-        self.convlayer2 = ConvLayer(dim, kernel_size, stride, padding, k_in=True)
-        self.fusion = nn.Conv2d((self.win_num+1)*self.dim, self.dim, kernel_size=1, stride=1, padding=0)
-
-
-    def forward(self, x):
-        """
-        x: B, L, C
-        """
-        B, L, C = x.shape
-        H, W = self.input_resolution, self.input_resolution
-
-        # x_windows:  bs, win_num*c, wh, ww
-        x_windows = ka_window_partition(x, self.window_size)
-
-        # windows_conv1:  bs, win_num*c, wh, ww
-        # kernels:  win_num*c, c, k_size, k_size
-        windows_conv1, kernels = self.convlayer1(x_windows)
-
-
-        ### 给窗口卷积核赋权        A1win1 ... A4win4
-        # kernels:  bs*win_num*c, c, k_size, k_size
-        kernels = self.wink_reweight(kernels, windows_conv1)
-
-
-        ### 生成全局卷积核global kernel
-        # kernels:  bs*c, win_num*c, k_size, k_size
-        kernels = kernels.reshape(B, self.win_num, self.dim, self.dim, self.kernel_size, self.kernel_size).transpose(1, 2).reshape(B*self.dim, self.win_num*self.dim, self.kernel_size, self.kernel_size)
-
-        # global_kernel:  bs*c, c, k_size, k_size
-        global_kernel = self.gk_generation(kernels)
-
-        # global_kernel:  bs, 1, c, c, k_size, k_size
-        global_kernel = global_kernel.reshape(B, self.dim, self.dim, self.kernel_size, self.kernel_size).unsqueeze(1)
-
-        # kernels:  bs, win_num, c, c, k_size, k_size
-        kernels = kernels.reshape(B, self.dim, self.win_num, self.dim, self.kernel_size, self.kernel_size).transpose(1, 2)
-
-        # kernels:  bs, win_num+1, c, c, k_size, k_size
-        kernels = torch.cat([kernels, global_kernel], dim=1)
-
-        # kernels:  bs*(win_num+1)*c, c, k_size, k_size
-        kernels = kernels.reshape(-1, self.dim, self.kernel_size, self.kernel_size)
-
-
-        ### 卷积核与输入特征计算卷积
-        # x:  bs, c, h, w
-        x = x.reshape(B, H, W, C).permute(0, 3, 1, 2)
-
-        # x:  bs, (win_num+1)*c, h, w
-        x = x.repeat(1, self.win_num+1, 1, 1)
-
-        # x:  1, bs*(win_num+1)*c, h, w
-        x = x.reshape(1, B*(self.win_num+1)*C, H, W)
-
-        # x:  1, bs*(win_num+1)*c, h, w
-        x, _ = self.convlayer2(x, kernels, groups=B*(self.win_num+1))
-        
-        # x:  bs, (win_num+1)*c, h, w
-        x = x.reshape(B, (self.win_num+1)*C, H, W)
-
-        # x:  bs, c, h, w
-        x = self.fusion(x)
-
-        # x:  bs, h*w, c
-        x = x.permute(0, 2, 3, 1).reshape(B, H*W, C)
-
-        return x
 
 
 class SwinTransformerBlock(nn.Module):
@@ -404,12 +175,13 @@ class SwinTransformerBlock(nn.Module):
             # if window size is larger than input resolution, we don't partition windows
             self.shift_size = 0
             self.window_size = min(self.input_resolution)
+
+        print(f"shift_size: {self.shift_size}, window_size: {self.window_size}")
         assert 0 <= self.shift_size < self.window_size, "shift_size must in 0-window_size"
 
         self.norm1 = norm_layer(dim)
-        self.KernelAttention = KernelAttention(dim//2, input_resolution[0], num_heads//2, ka_win_num=4, kernel_size=3, stride=1, padding=1, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
         self.attn = WindowAttention(
-            dim//2, window_size=to_2tuple(self.window_size), num_heads=num_heads//2,
+            dim, window_size=to_2tuple(self.window_size), num_heads=num_heads,
             qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
@@ -452,40 +224,29 @@ class SwinTransformerBlock(nn.Module):
         x = self.norm1(x)
         x = x.view(B, H, W, C)
 
-        x_wa, x_ka = torch.chunk(x, 2, dim=-1)
-
-
-        ### kernel attention
-        x_ka = x_ka.reshape(B, H*W, C//2)
-        x_ka = self.KernelAttention(x_ka)
-
-        ### window attention
         # cyclic shift
         if self.shift_size > 0:
-            shifted_x = torch.roll(x_wa, shifts=(-self.shift_size, -self.shift_size), dims=(1, 2))
+            shifted_x = torch.roll(x, shifts=(-self.shift_size, -self.shift_size), dims=(1, 2))
         else:
-            shifted_x = x_wa
+            shifted_x = x
 
         # partition windows
-        x_windows = window_partition(shifted_x, self.window_size)  # nW*B, window_size, window_size, C/2
-        x_windows = x_windows.view(-1, self.window_size * self.window_size, C//2)  # nW*B, window_size*window_size, C/2
+        x_windows = window_partition(shifted_x, self.window_size)  # nW*B, window_size, window_size, C
+        x_windows = x_windows.view(-1, self.window_size * self.window_size, C)  # nW*B, window_size*window_size, C
 
         # W-MSA/SW-MSA
-        attn_windows = self.attn(x_windows, mask=self.attn_mask)  # nW*B, window_size*window_size, C/2
+        attn_windows = self.attn(x_windows, mask=self.attn_mask)  # nW*B, window_size*window_size, C
 
         # merge windows
-        attn_windows = attn_windows.view(-1, self.window_size, self.window_size, C//2)
-        shifted_x = window_reverse(attn_windows, self.window_size, H, W)  # B H' W' C/2
+        attn_windows = attn_windows.view(-1, self.window_size, self.window_size, C)
+        shifted_x = window_reverse(attn_windows, self.window_size, H, W)  # B H' W' C
 
         # reverse cyclic shift
         if self.shift_size > 0:
-            x_wa = torch.roll(shifted_x, shifts=(self.shift_size, self.shift_size), dims=(1, 2))
+            x = torch.roll(shifted_x, shifts=(self.shift_size, self.shift_size), dims=(1, 2))
         else:
-            x_wa = shifted_x
-        x_wa = x_wa.view(B, H * W, C//2)
-
-        ### concat
-        x = torch.cat([x_wa, x_ka], dim=-1)
+            x = shifted_x
+        x = x.view(B, H * W, C)
 
         # FFN
         x = shortcut + self.drop_path(x)
@@ -592,8 +353,8 @@ class BasicLayer(nn.Module):
         # build blocks
         self.blocks = nn.ModuleList([
             SwinTransformerBlock(dim=dim, input_resolution=input_resolution,
-                                 num_heads=num_heads, window_size=window_size,
-                                 shift_size=0 if (i % 2 == 0) else window_size // 2,
+                                 num_heads=num_heads, window_size=window_size // (2 ** i) if window_size // (2 ** i) >1 else 2,
+                                 shift_size=0 if (i % 2 == 0) else window_size // (2 ** (i+1)),
                                  mlp_ratio=mlp_ratio,
                                  qkv_bias=qkv_bias, qk_scale=qk_scale,
                                  drop=drop, attn_drop=attn_drop,

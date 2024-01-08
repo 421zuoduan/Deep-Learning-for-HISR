@@ -78,7 +78,14 @@ SWATv3：基于baseline_noshiftv3加KA
 
 SWAT_baselinev2：SwinIR架构，depth[2, 2, 2, 2, 2]
 SWAT_baseline_noshiftv4：基于SWAT_baselinev2, 去掉了shift
+SWAT_baseline_noshiftv5：模型最后去掉conv和shortcut
 SWATv4: 基于SWAT_baseline_noshiftv4, 加上了kernelattention
+
+Swin_baseline: dim=32, depth[4, 8], head[8, 8]
+Swinv1
+Swin_baselinev2: dim=32, depth[8, 16], head[8, 8]
+Swin_baselinev3: dim=48, depth[4, 8], head[8, 8], win_size=8
+Swinv3
 
 |模型|SAM|ERGAS|PSNR|参数量|训练位置|时间|
 |----|----|----|----|----|----|----|
@@ -89,7 +96,7 @@ SWATv4: 基于SWAT_baseline_noshiftv4, 加上了kernelattention
 |SWAT_baseline_noshiftv2|1.9624378|1.0156476|52.0306768|1.072 M|6号机 UDLv2|20231126 [4, 8, 16, 16, 8]|
 |SWAT_baseline_noshiftv3|2.0066910|1.0203953|51.9469310|1.666 M|6号机 UDLv2|20231129 多头深depth|
 |SWAT_baseline_noshiftv4|2.0467095|1.0404192|51.8539654|0.613 M|6号机 UDLv2|20240103|
-|SWAT_baseline_noshiftv5||||0.593 M|2号机 UDLv2|20240104|
+|SWAT_baseline_noshiftv5|2.1827140|1.0912402|51.4073687|0.593 M|2号机 UDLv2|20240104|
 |SWATv1|2.6140107|1.5705872|49.5414508|1.964 M|6号机 UDLv2 改到 2号机 UDL nomachine|20231124 1头减少|
 |SWATv1|2.0587468|1.1329675|51.4186786|1.964 M|6号机 UDLv2 改到 2号机 UDL nomachine|20231124 4头增加|
 |SWATv1|2.0702945|1.4042612|50.8808126|1.964 M|2号机 UDL|20231126 8头不变|
@@ -97,8 +104,11 @@ SWATv4: 基于SWAT_baseline_noshiftv4, 加上了kernelattention
 |SWATv2|2.1123183|1.4603989|50.5582938|1.633 M|2号机 UDLv3|20231126 4头增加|
 |SWATv3|2.0416935|1.2540732|51.0746963|2.631 M|6号机 UDL|20231129 4头增加深depth|
 |SWATv4|2.1890895|1.1503608|51.1216535|0.906 M|2号机 UDLv2|20240103 head=[8, 8, 8, 8]|
+|Swin_baseline|2.0002270|1.0747630|51.8366144|0.910 M|6号机 UDL|20240105 dim=48|
+|Swin_baseline|||| M|2号机 UDLv2|20240106 dim=32|
+|Swinv1|2.1109537|1.2216327|50.9350288|0.910 M|6号机 UDLv2|20240105 dim=48|
+|Swinv1|2.2070388|1.1802504|50.7175754| M|6号机 UDLv2|20240106 dim=32|
 <!-- |SWATv4||||0.906 M|2号机 UDLv2|20240104 head=[4, 4, 4, 4]| -->
-
 
 SWAT_baseline_noshiftv4     1000epoch SAM: 1.9496609 (avg:2.2695953)  ERGAS: 0.9568591 (avg:1.1029562)  PSNR: 47.8122940 (avg:51.1039127)
 SWATv4 2000epoch 51.1216    1000epoch SAM: 2.2170603 (avg:2.3404494)  ERGAS: 1.1031498 (avg:1.2163127)  PSNR: 46.9196053 (avg:50.5814847)
