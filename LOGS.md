@@ -101,7 +101,7 @@ SWATv4: 基于SWAT_baseline_noshiftv4, 加上了kernelattention
 
 **邓尚琦师兄的Swin:**
 
-Swin_baseline: dim=32, depth[4, 8], head[8, 8]
+Swin_baseline: dim=32, depth[2, 4], head[8, 8]
 
 Swinv1
 
@@ -114,6 +114,8 @@ Swinv3: 窗口逐渐变小
 Swin_baselinev4: dim=48, depth[4, 8], head[16, 16], win_size=8
 
 Swinv4
+
+Swin_baselinev5: dim=48, depth[4, 8], head[16, 16], win_size=4
 
 Swinv5: padding, 分成16窗
 
@@ -148,7 +150,9 @@ Swinv5: padding, 分成16窗
 |Swinv3|2.1027605|1.1144668|51.3873475|1.254 M|6号机 UDLv2|20240108 dim=48|
 |Swin_baselinev4|1.9972528|1.0580914|51.9209279|0.910 M|2号机 UDL|20240109 dim=48|
 |Swinv4|2.0549133|1.1652680|51.3888834|0.254 M|2号机 UDLv2|20240109 dim=48|
-|Swinv5||||1.013 M|6号机 UDL|20240109 dim=48|
+|Swin_baselinev5|2.0304114|1.0900102|51.7110329|0.910 M|2号机 UDLv2|20240111 dim=48|
+|Swinv5|2.1011510|1.0906333|51.4140316|1.013 M|2号机 UDL|20240111 dim=48|
+|Swinv5_8head|2.1005311|1.0977429|51.4193375|1.013 M|2号机 UDL|20240112 dim=48|
 <!-- |SWATv4||||0.906 M|2号机 UDLv2|20240104 head=[4, 4, 4, 4]| -->
 
 

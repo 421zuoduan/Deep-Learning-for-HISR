@@ -11,7 +11,7 @@ import math
 import torch
 from torch import optim
 from UDL.Basis.criterion_metrics import *
-from UDL.hisr.HISR.Swinv4.Swin import *
+from UDL.hisr.HISR.Swinv5.Swin import *
 from UDL.pansharpening.common.evaluate import analysis_accu
 from UDL.Basis.module import PatchMergeModule
 from UDL.Basis.pytorch_msssim.cal_ssim import SSIM
