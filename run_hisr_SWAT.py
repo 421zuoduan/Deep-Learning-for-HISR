@@ -30,8 +30,10 @@ from UDL.Basis.auxiliary import set_random_seed
 # from UDL.hisr.HISR.Swinv4.option_hisr_Swin import cfg as args
 # from UDL.hisr.HISR.Swinv4.model_Swin import build
 
-from UDL.hisr.HISR.Swinv6.option_hisr_Swin import cfg as args
-from UDL.hisr.HISR.Swinv6.model_Swin import build
+# from UDL.hisr.HISR.Swinv6.option_hisr_Swin import cfg as args
+# from UDL.hisr.HISR.Swinv6.model_Swin import build
+from UDL.hisr.HISR.Swinv7.option_hisr_Swin import cfg as args
+from UDL.hisr.HISR.Swinv7.model_Swin import build
 
 
 

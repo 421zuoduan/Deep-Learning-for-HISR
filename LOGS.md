@@ -119,6 +119,10 @@ Swin_baselinev5: dim=48, depth[4, 8], head[16, 16], win_size=4
 
 Swinv5: padding, 分成16窗
 
+Swinv6: 只在第二层加入
+
+Swinv7: padding, 分成64窗
+
 |模型|SAM|ERGAS|PSNR|参数量|训练位置|时间|
 |----|----|----|----|----|----|----|
 |SWAT_baseline|1.9349307|0.9883768|52.2688994|1.308 M|2号机 UDLv2|20231124 [1, 2, 4, 4, 2]|
