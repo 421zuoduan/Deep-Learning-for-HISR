@@ -10,6 +10,7 @@ root_dir = script_path.split(cfg.task)[0]
 print(root_dir)
 parser = argparse.ArgumentParser(description='PyTorch derain Training')
 parser.add_argument('--name', default='Swinv5', type=str)
+parser.add_argument('--test_epoch', default='2001', type=int)
 
 model_path = f'{root_dir}/results/{cfg.task}/Swin/cave_x4/AdaTrans/Test/model_2022-02-21-09-37/s.pth.tar'
 
