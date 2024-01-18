@@ -104,7 +104,7 @@ def hisr_cfg():
 
     args.scale = [1]
     if platform.system() == 'Linux':
-        args.data_dir = '/home/office-401-2/Desktop/Machine Learning/ShangQi_Deng/UDL/UDL/hisr/data'
+        args.data_dir = '/Data/Datasets/hisr'
     if platform.system() == "Windows":
         args.data_dir = 'G:/dl/Data/HSI'
 

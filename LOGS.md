@@ -107,21 +107,27 @@ Swinv1
 
 Swin_baselinev2: dim=32, depth[8, 16], head[8, 8]
 
-Swin_baselinev3: dim=48, depth[4, 8], head[8, 8], win_size=8
+Swin_baselinev3: dim=48, depth[2, 4], head[8, 8], win_size=8
 
 Swinv3: 窗口逐渐变小
 
-Swin_baselinev4: dim=48, depth[4, 8], head[16, 16], win_size=8
+Swin_baselinev4: dim=48, depth[2, 4], head[16, 16], win_size=8
 
 Swinv4
 
-Swin_baselinev5: dim=48, depth[4, 8], head[16, 16], win_size=4
+Swin_baselinev5: dim=48, depth[2, 4], head[16, 16], win_size=4
 
 Swinv5: padding, 分成16窗
+
+Swin_baselinev6: dim=48, depth[2, 4], head[16, 16], win_size=16
 
 Swinv6: 只在第二层加入
 
 Swinv7: padding, 分成64窗
+
+Swinv8: 基于v6, window_size改为16
+
+
 
 |模型|SAM|ERGAS|PSNR|参数量|训练位置|时间|
 |----|----|----|----|----|----|----|
@@ -157,10 +163,14 @@ Swinv7: padding, 分成64窗
 |Swin_baselinev5|2.0304114|1.0900102|51.7110329|0.910 M|2号机 UDLv2|20240111 dim=48|
 |Swinv5|2.1011510|1.0906333|51.4140316|1.013 M|2号机 UDL|20240111 dim=48|
 |Swinv5_8head|2.1005311|1.0977429|51.4193375|1.013 M|2号机 UDL|20240112 dim=48|
-|Swinv6||||0.995 M|hu31|20240114 dim=48|
-|Swinv7|||| M|hu31|20240114 dim=48|
-<!-- |SWATv4||||0.906 M|2号机 UDLv2|20240104 head=[4, 4, 4, 4]| -->
+|Swin_baselinev6|2.0006385|1.0753417|51.8400543|0.910 M|2号机 UDLv2|20240117 dim=48|
+|Swinv6|2.0768732|1.0771445|51.6581553|0.995 M|2号机 UDLv2|20240114 dim=48|
+|Swinv7|2.1605771|1.1705414|51.0369349|1.654 M|2号机 UDL|20240114 dim=48|
+|Swinv8|2.0597782|1.0807452|51.6116468|0.995 M|2号机 UDL|20240117 dim=48|
 
+
+
+<!-- |SWATv4||||0.906 M|2号机 UDLv2|20240104 head=[4, 4, 4, 4]| -->
 
 SWAT_baseline_noshiftv4     1000epoch SAM: 1.9496609 (avg:2.2695953)  ERGAS: 0.9568591 (avg:1.1029562)  PSNR: 47.8122940 (avg:51.1039127)
 SWATv4 2000epoch 51.1216    1000epoch SAM: 2.2170603 (avg:2.3404494)  ERGAS: 1.1031498 (avg:1.2163127)  PSNR: 46.9196053 (avg:50.5814847)
