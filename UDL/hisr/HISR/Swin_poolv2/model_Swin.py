@@ -11,7 +11,7 @@ import math
 import torch
 from torch import optim
 from UDL.Basis.criterion_metrics import *
-from UDL.hisr.HISR.Swinv9.Swin import *
+from UDL.hisr.HISR.Swin_poolv2.Swin import *
 from UDL.pansharpening.common.evaluate import analysis_accu
 from UDL.Basis.module import PatchMergeModule
 from UDL.Basis.pytorch_msssim.cal_ssim import SSIM
@@ -50,7 +50,7 @@ class Swinnet(PatchMergeModule):
         self.args = args
         self.img_size = 64
         self.in_channels = 31
-        self.embed_dim = 48
+        self.embed_dim = 32
         self.conv = nn.Sequential(
             nn.Conv2d(self.embed_dim, self.in_channels, 3, 1, 1), nn.LeakyReLU(0.2, True)
         )
@@ -59,7 +59,7 @@ class Swinnet(PatchMergeModule):
         )
         self.conv1 = nn.Sequential(
             nn.Conv2d(self.embed_dim*2, 31, 3, 1, 1), nn.LeakyReLU(0.2, True))
-        self.t = T(img_size=self.img_size, patch_size=1, in_chans=34, embed_dim=self.embed_dim, depths=[2, 4], num_heads=[16, 16], window_size=8)
+        self.t = T(img_size=self.img_size, patch_size=1, in_chans=34, embed_dim=self.embed_dim, depths=[2, 4], num_heads=[8, 8], window_size=8)
         self.visual_corresponding_name = {}
         init_weights(self.conv, self.u, self.conv1)
         init_w(self.t)
