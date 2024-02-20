@@ -43,8 +43,16 @@ from UDL.Basis.auxiliary import set_random_seed
 
 # from UDL.hisr.HISR.Swin_poolv1.option_hisr_Swin import cfg as args
 # from UDL.hisr.HISR.Swin_poolv1.model_Swin import build
-from UDL.hisr.HISR.Swin_poolv2.option_hisr_Swin import cfg as args
-from UDL.hisr.HISR.Swin_poolv2.model_Swin import build
+# from UDL.hisr.HISR.Swin_poolv2.option_hisr_Swin import cfg as args
+# from UDL.hisr.HISR.Swin_poolv2.model_Swin import build
+# from UDL.hisr.HISR.Swin_poolv3.option_hisr_Swin import cfg as args
+# from UDL.hisr.HISR.Swin_poolv3.model_Swin import build
+# from UDL.hisr.HISR.Swin_poolv4.option_hisr_Swin import cfg as args
+# from UDL.hisr.HISR.Swin_poolv4.model_Swin import build
+# from UDL.hisr.HISR.Swin_poolv5.option_hisr_Swin import cfg as args
+# from UDL.hisr.HISR.Swin_poolv5.model_Swin import build
+from UDL.hisr.HISR.Swin_poolv6.option_hisr_Swin import cfg as args
+from UDL.hisr.HISR.Swin_poolv6.model_Swin import build
 
 
 
