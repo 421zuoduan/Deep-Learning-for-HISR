@@ -12,8 +12,8 @@ import torch.nn as nn
 import torch.utils.checkpoint as checkpoint
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 from einops import rearrange, repeat
-from math import sqrt
 import torch.nn.functional as F
+from math import sqrt
 
 
 class Mlp(nn.Module):
@@ -80,16 +80,28 @@ class WindowAttention(nn.Module):
         proj_drop (float, optional): Dropout ratio of output. Default: 0.0
     """
 
-    def __init__(self, dim, window_size, num_heads, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.):
+    def __init__(self, dim, input_resolution, window_size, shift_size, num_heads, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0., ):
 
         super().__init__()
         self.dim = dim
         self.window_size = window_size  # Wh, Ww
+        self.shift_size = shift_size
         self.num_heads = num_heads
         head_dim = dim // num_heads
         self.scale = qk_scale or head_dim ** -0.5
 
-        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        self.qkv = nn.Conv2d(dim, dim * 3, kernel_size=1)
+
+        if shift_size > 0:
+            self.qkv_dwconv = nn.Conv2d(dim * 3, dim * 3, kernel_size=3, stride=1, padding=1, groups=dim * 3)
+        else:
+            self.qkv_dwconv_local = nn.Conv2d(dim * 3, dim * 3, kernel_size=3, stride=1, padding=1, groups=dim * 3)
+            self.q_dwconv_global = WindowInteractionConv(input_resolution, dim, ka_win_num=16, k_size=3, k_stride=1, k_padding=1, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=proj_drop)
+            self.k_dwconv_global = WindowInteractionConv(input_resolution, dim, ka_win_num=16, k_size=3, k_stride=1, k_padding=1, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=proj_drop)
+            self.v_dwconv_global = WindowInteractionConv(input_resolution, dim, ka_win_num=16, k_size=3, k_stride=1, k_padding=1, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=proj_drop)
+            # self.qkv_dwconv = WindowInteractionConv(input_resolution, dim*3, ka_win_num=16, k_size=3, k_stride=1, k_padding=1, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=proj_drop)
+        # self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
@@ -100,19 +112,54 @@ class WindowAttention(nn.Module):
     def forward(self, x, mask=None):
         """
         Args:
+            x_origin: input features with shape of (B, H, W, C)
             x: input features with shape of (num_windows*B, N, C)
             mask: (0/-inf) mask with shape of (num_windows, Wh*Ww, Wh*Ww) or None
         """
-        B_, N, C = x.shape
-        qkv = self.qkv(x).reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
+        B, H, W, C = x.shape
+        N = self.window_size ** 2
+        
+        if self.shift_size > 0:
+            x_windows = window_partition(x, self.window_size)
+            x_windows = x_windows.permute(0, 3, 1, 2)  # nW*B, C, window_size, window_size
+            qkv = self.qkv_dwconv(self.qkv(x_windows))
+            q, k, v = qkv.chunk(3, dim=1)
+        else:
+            x = x.reshape(-1, H, W, C).permute(0, 3, 1, 2)
+            qkv = self.qkv(x)
+            q, k, v = qkv.chunk(3, dim=1)
+            q = self.q_dwconv_global(q)
+            k = self.k_dwconv_global(k)
+            v = self.v_dwconv_global(v)
+
+            # B*nW, window_size, window_size, 3C
+            qkv = torch.cat([q, k, v], dim=1).permute(0, 2, 3, 1)
+
+            # B*nW, 3C, window_size, window_size
+            qkv = window_partition(qkv, self.window_size).permute(0, 3, 1, 2)
+
+            # B*nW, 3C, window_size, window_size
+            qkv = self.qkv_dwconv_local(qkv)
+
+            # q, k, v:  B*nW, C, window_size, window_size
+            q, k, v = qkv.chunk(3, dim=1)
+            
+        
+        q = rearrange(q, 'b (head c) h w -> b head (h w) c', head=self.num_heads)
+        k = rearrange(k, 'b (head c) h w -> b head (h w) c', head=self.num_heads)
+        v = rearrange(v, 'b (head c) h w -> b head (h w) c', head=self.num_heads)
+
+        q = torch.nn.functional.normalize(q, dim=-1)
+        k = torch.nn.functional.normalize(k, dim=-1)
+        # qkv = self.qkv(x).reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        # q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
 
         q = q * self.scale
         attn = (q @ k.transpose(-2, -1))
 
         if mask is not None:
             nW = mask.shape[0]
-            attn = attn.view(B_ // nW, nW, self.num_heads, N, N).cuda() + mask.unsqueeze(1).unsqueeze(0)
+            attn = attn.view(B, nW, self.num_heads, N, N).cuda() + mask.unsqueeze(1).unsqueeze(0)
             attn = attn.view(-1, self.num_heads, N, N)
             attn = self.softmax(attn)
         else:
@@ -120,7 +167,7 @@ class WindowAttention(nn.Module):
 
         attn = self.attn_drop(attn)
 
-        x = (attn @ v).transpose(1, 2).reshape(B_, N, C)
+        x = (attn @ v).transpose(1, 2).reshape(-1, N, C)
         x = self.proj(x)
         x = self.proj_drop(x)
         return x
@@ -230,8 +277,7 @@ class ConvLayer(nn.Module):
         return x
 
 
-class WindowInterAttention(nn.Module):
-
+class WindowInteractionConv(nn.Module):
     def __init__(self, input_resolution, dim, ka_win_num, k_size, k_stride, k_padding, num_heads, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.):
         super().__init__()
         self.input_resolution = input_resolution
@@ -264,16 +310,15 @@ class WindowInterAttention(nn.Module):
 
         self.convlayer = ConvLayer(dim, k_size, k_stride, k_padding, self.nW, if_global=True)
         self.wink_reweight = WinKernel_Reweight(dim, win_num=self.nW)
-        self.fusion = nn.Conv2d((self.nW+1)*self.dim, self.dim, kernel_size=1, stride=1, padding=0, groups=self.dim)
+        self.fusion = nn.Conv2d((self.nW+1)*self.dim, self.dim, kernel_size=1, stride=1, padding=0)
 
 
     def forward(self, x):
         '''
-        x: b, h*w, c
+        x: b, c, h, w
         '''
-        B, L, C = x.shape
-        H, W = self.input_resolution
-        x = x.view(B, H, W, C)
+        B, C, H, W = x.shape
+        x = x.permute(0, 2, 3, 1)
 
         # x_windows: B*nW, window_size, window_size, C
         x_windows = window_partition(x, self.window_size)
@@ -357,15 +402,15 @@ class WindowInterAttention(nn.Module):
 
         # x:  1, B*(nW+1)*C, H, W
         x = self.convlayer(x, kernels, B)
+        
+        # x:  B, (nW+1)*C, H, W
+        x = x.reshape(B, (self.nW+1)*C, H, W)
 
-        # x:  bs, (nW+1)*c, h, w
-        x = x.reshape(B, (self.nW+1), C, H, W).transpose(1, 2).reshape(B, (self.nW+1)*C, H, W)
-
-        # x:  bs, c, h, w
+        # x:  B, C, H, W
         x = self.fusion(x)
 
-        # x:  B, H*W, C
-        x = x.permute(0, 2, 3, 1).reshape(B, L, C)
+        # # x:  B, H*W, C
+        # x = x.permute(0, 2, 3, 1).reshape(B, L, C)
 
         return x
 
@@ -409,7 +454,7 @@ class SwinTransformerBlock(nn.Module):
 
         self.norm1 = norm_layer(dim)
         self.attn = WindowAttention(
-            dim, window_size=to_2tuple(self.window_size), num_heads=num_heads,
+            dim, input_resolution=input_resolution, window_size=self.window_size, shift_size=shift_size, num_heads=num_heads,
             qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
@@ -443,10 +488,6 @@ class SwinTransformerBlock(nn.Module):
         self.attn_mask = attn_mask
         # self.register_buffer("attn_mask", attn_mask)
 
-        if self.shift_size == 0:
-            self.window_inter_attn = WindowInterAttention(input_resolution, dim=dim, ka_win_num=16, k_size=3, k_stride=1, k_padding=1, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop)
-
-
     def forward(self, x):
         H, W = self.input_resolution
         B, L, C = x.shape
@@ -462,12 +503,12 @@ class SwinTransformerBlock(nn.Module):
         else:
             shifted_x = x
 
-        # partition windows
-        x_windows = window_partition(shifted_x, self.window_size)  # nW*B, window_size, window_size, C
-        x_windows = x_windows.view(-1, self.window_size * self.window_size, C)  # nW*B, window_size*window_size, C
+        # # partition windows
+        # x_windows = window_partition(shifted_x, self.window_size)  # nW*B, window_size, window_size, C
+        # x_windows = x_windows.view(-1, self.window_size * self.window_size, C)  # nW*B, window_size*window_size, C
 
         # W-MSA/SW-MSA
-        attn_windows = self.attn(x_windows, mask=self.attn_mask)  # nW*B, window_size*window_size, C
+        attn_windows = self.attn(shifted_x, mask=self.attn_mask)  # nW*B, window_size*window_size, C
 
         # merge windows
         attn_windows = attn_windows.view(-1, self.window_size, self.window_size, C)
@@ -479,9 +520,6 @@ class SwinTransformerBlock(nn.Module):
         else:
             x = shifted_x
         x = x.view(B, H * W, C)
-
-        if self.shift_size == 0:
-            x = self.window_inter_attn(x)
 
         # FFN
         x = shortcut + self.drop_path(x)
@@ -604,17 +642,12 @@ class BasicLayer(nn.Module):
         else:
             self.downsample = None
 
-        # self.window_inter_attn = WindowInterAttention(input_resolution, dim=dim, ka_win_num=16, window_size=window_size, k_size=3, k_stride=1, k_padding=1, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop)
-
-
     def forward(self, x):
         for blk in self.blocks:
             if self.use_checkpoint:
                 x = checkpoint.checkpoint(blk, x)
             else:
                 x = blk(x)
-
-        # x = self.window_inter_attn(x)
 
         if self.downsample is not None:
             x = self.downsample(x)

@@ -12,8 +12,8 @@ import torch.nn as nn
 import torch.utils.checkpoint as checkpoint
 from timm.models.layers import DropPath, to_2tuple, trunc_normal_
 from einops import rearrange, repeat
-from math import sqrt
 import torch.nn.functional as F
+from math import sqrt
 
 
 class Mlp(nn.Module):
@@ -80,16 +80,24 @@ class WindowAttention(nn.Module):
         proj_drop (float, optional): Dropout ratio of output. Default: 0.0
     """
 
-    def __init__(self, dim, window_size, num_heads, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.):
+    def __init__(self, dim, input_resolution, window_size, shift_size, num_heads, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0., ):
 
         super().__init__()
         self.dim = dim
         self.window_size = window_size  # Wh, Ww
+        self.shift_size = shift_size
         self.num_heads = num_heads
         head_dim = dim // num_heads
         self.scale = qk_scale or head_dim ** -0.5
 
-        self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+        self.qkv = nn.Conv2d(dim, dim * 3, kernel_size=1)
+
+        if shift_size > 0:
+            self.qkv_dwconv = nn.Conv2d(dim * 3, dim * 3, kernel_size=3, stride=1, padding=1, groups=dim * 3)
+        else:
+            self.qkv_dwconv = WindowInteractionConv(dim*3, input_resolution, num_heads, ka_win_num=16, kernel_size=3, stride=1, padding=1, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=proj_drop)
+        # self.qkv = nn.Linear(dim, dim * 3, bias=qkv_bias)
+
         self.attn_drop = nn.Dropout(attn_drop)
         self.proj = nn.Linear(dim, dim)
         self.proj_drop = nn.Dropout(proj_drop)
@@ -97,15 +105,31 @@ class WindowAttention(nn.Module):
         # trunc_normal_(self.relative_position_bias_table, std=.02)
         self.softmax = nn.Softmax(dim=-1)
 
-    def forward(self, x, mask=None):
+    def forward(self, x_origin, x, mask=None):
         """
         Args:
             x: input features with shape of (num_windows*B, N, C)
             mask: (0/-inf) mask with shape of (num_windows, Wh*Ww, Wh*Ww) or None
         """
         B_, N, C = x.shape
-        qkv = self.qkv(x).reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
-        q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
+        H, W = self.window_size
+        x = x.reshape(-1, H, W, C).permute(0, 3, 1, 2)
+        x_origin = x_origin.permute(0, 3, 1, 2)
+
+        if self.shift_size > 0:
+            qkv = self.qkv_dwconv(self.qkv(x))
+        else:
+            qkv = self.qkv_dwconv(self.qkv(x_origin))
+        q, k, v = qkv.chunk(3, dim=1)
+
+        q = rearrange(q, 'b (head c) h w -> b head (h w) c', head=self.num_heads)
+        k = rearrange(k, 'b (head c) h w -> b head (h w) c', head=self.num_heads)
+        v = rearrange(v, 'b (head c) h w -> b head (h w) c', head=self.num_heads)
+
+        q = torch.nn.functional.normalize(q, dim=-1)
+        k = torch.nn.functional.normalize(k, dim=-1)
+        # qkv = self.qkv(x).reshape(B_, N, 3, self.num_heads, C // self.num_heads).permute(2, 0, 3, 1, 4)
+        # q, k, v = qkv[0], qkv[1], qkv[2]  # make torchscript happy (cannot use tensor as tuple)
 
         q = q * self.scale
         attn = (q @ k.transpose(-2, -1))
@@ -142,22 +166,43 @@ class WindowAttention(nn.Module):
         return flops
     
 
-def pad_feature_map(input, window_size=8):
-    _, L, C = input.size()
-    H, W = int(math.sqrt(L)), int(math.sqrt(L))
-    input = input.reshape(-1, H, W, C).permute(0, 3, 1, 2)
-    
-    # 计算要添加的上下左右 padding
-    pad_h = (window_size - (H % window_size)) % window_size
-    pad_w = (window_size - (W % window_size)) % window_size
-    
-    # 进行 padding
-    padded_feature_map = torch.nn.functional.pad(input, (0, pad_w, 0, pad_h), 'constant', 0)
+def ka_window_partition(x, window_size):
+    """
+    input: (B, H*W, C)
+    output: (B, num_windows*C, window_size, window_size)
+    """
+    B, L, C = x.shape
+    H, W = int(sqrt(L)), int(sqrt(L))
+    x = x.reshape(B, H // window_size, window_size, W // window_size, window_size, C)
+    windows = x.permute(0, 1, 3, 5, 2, 4).contiguous().view(B, -1, window_size, window_size)
+    return windows
 
-    output = padded_feature_map.permute(0, 2, 3, 1).reshape(-1, (H+pad_h)*(W+pad_w), C)
-    
-    return output
 
+def ka_window_reverse(windows, window_size, H, W):
+    """
+    input: (B, num_windows*C, window_size, window_size)
+    output: (B, H*W, C)
+    """
+    B = windows.shape[0]
+    x = windows.contiguous().view(B, H // window_size, W // window_size, -1, window_size, window_size)
+    x = x.permute(0, 1, 4, 2, 5, 3).contiguous().view(B, H*W, -1)
+    return x
+
+
+class SELayer_KA(nn.Module):
+    def __init__(self, channel):
+        super().__init__()
+        self.se = nn.Sequential(nn.AdaptiveAvgPool2d((1, 1)),
+                                nn.Conv2d(channel, channel // 16 if channel >= 64 else channel, kernel_size=1),
+                                nn.ReLU(),
+                                nn.Conv2d(channel // 16 if channel >= 64 else channel, channel, kernel_size=1),
+                                nn.Sigmoid(), )
+
+    def forward(self, x):
+        channel_weight = self.se(x)
+        x = x * channel_weight
+        return x
+    
 
 class WinKernel_Reweight(nn.Module):
     def __init__(self, dim, win_num=4):
@@ -194,8 +239,11 @@ class WinKernel_Reweight(nn.Module):
         # weight:  bs, win_num, 1, 1, 1, 1
         weight = self.sigmoid(win_weight).unsqueeze(-1).unsqueeze(-1)
 
+        # kernels:  1, win_num, c, 1, k, k
+        kernels = kernels.reshape(self.win_num, self.dim, 1, kernels.shape[-2], kernels.shape[-1]).unsqueeze(0)
+
         # kernels:  bs, win_num, c, 1, k, k
-        kernels = kernels.reshape(B, self.win_num, self.dim, 1, kernels.shape[-2], kernels.shape[-1])
+        kernels = kernels.repeat(B, 1, 1, 1, 1, 1)
 
         # kernels:  bs, win_num, c, 1, k, k
         kernels = weight * kernels
@@ -204,168 +252,167 @@ class WinKernel_Reweight(nn.Module):
         kernels = kernels.reshape(-1, 1, kernels.shape[-2], kernels.shape[-1])
 
         return kernels
-
+    
 
 class ConvLayer(nn.Module):
-
-    def __init__(self, dim, k_size, stride, padding, ka_win_num, if_global=True):
+    def __init__(self, dim, kernel_size=3, stride=1, padding=1, win_num=16, k_in=False):
         super().__init__()
 
         self.dim = dim
-        self.k_size = k_size
+        self.win_num = win_num
+        self.kernel_size = kernel_size
         self.stride = stride
         self.padding = padding
-        self.nW = ka_win_num
-        self.if_global = if_global
-
-    def forward(self, x, kernels, B):
-
-        if self.if_global:
-            G = B * (self.nW+1) * self.dim
+        # self.groups = groups
+        # groups由卷积方式决定，这里使用dwconv, 更改卷积方式需要更改params的定义和groups的值
+        if not k_in:
+            self.groups = win_num * dim
+            self.params = nn.Parameter(torch.randn(win_num*dim, 1, kernel_size, kernel_size), requires_grad=True)
         else:
-            G = B * self.nW * self.dim
+            self.groups = None
+            self.params = None
 
-        x = F.conv2d(x, kernels, stride=self.stride, padding=self.padding, groups=G)
+    def forward(self, x, kernels=None, groups=None):
+        '''
+        x:  bs, win_num*c, wh, ww
+        kernels:  None
 
-        return x
+        or
+
+        x:  bs, win_num*c, h, w
+        kernels:  c*win_num, c, k_size, k_size
+        '''
+
+        if kernels is None:
+            x = F.conv2d(x, self.params, stride=self.stride, padding=self.padding, groups=self.groups)
+        else:
+            x = F.conv2d(x, kernels, stride=self.stride, padding=self.padding, groups=groups)
+
+        return x, self.params
+    
+def pad_feature_map(input, window_size=8):
+    _, L, C = input.size()
+    H, W = int(sqrt(L)), int(sqrt(L))
+    input = input.reshape(-1, H, W, C).permute(0, 3, 1, 2)
+    
+    # 计算要添加的上下左右 padding
+    pad_h = (window_size - (H % window_size)) % window_size
+    pad_w = (window_size - (W % window_size)) % window_size
+    
+    # 进行 padding
+    padded_feature_map = torch.nn.functional.pad(input, (0, pad_w, 0, pad_h), 'constant', 0)
+
+    output = padded_feature_map.permute(0, 2, 3, 1).reshape(-1, (H+pad_h)*(W+pad_w), C)
+    
+    return output
 
 
-class WindowInterAttention(nn.Module):
+class WindowInteractionConv(nn.Module):
+    """
+    第一个分组卷积产生核，然后计算核的自注意力，调整核，第二个分组卷积产生输出，skip connection
+    
+    Args:
+        dim: 输入通道数
+        window_size: 窗口大小
+        num_heads: 注意力头数
+        qkv_bias: 是否使用偏置
+        qk_scale: 缩放因子
+        attn_drop: 注意力dropout
+        proj_drop: 输出dropout
+        ka_window_size: kernel attention window size
+        kernel_size: 卷积核大小
+        stride: 卷积步长
+        padding: 卷积padding
+    """
 
-    def __init__(self, input_resolution, dim, ka_win_num, k_size, k_stride, k_padding, num_heads, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.):
+    def __init__(self, dim, input_resolution, num_heads, ka_win_num=16, kernel_size=3, stride=1, padding=1, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.):
         super().__init__()
-        self.input_resolution = input_resolution
+
         self.dim = dim
-        self.nW = ka_win_num
-        # self.nW = input_resolution[0] * input_resolution[1] // window_size // window_size
-        self.window_size = int(input_resolution[0] // sqrt(ka_win_num))
+        self.input_resolution = input_resolution
         self.num_heads = num_heads
-        self.k_size = k_size
-        self.k_stride = k_stride
-        self.k_padding = k_padding
+        self.win_num = ka_win_num
+        self.stride = stride
+        self.padding = padding
+        self.kernel_size = kernel_size
 
-        self.pooling = nn.AdaptiveAvgPool2d((k_size, k_size))
+        self.scale = qk_scale or (dim//num_heads) ** (-0.5)
+        self.window_size = int(input_resolution[0] // sqrt(ka_win_num))
 
-        # self.scale = qk_scale or dim ** -0.5
-        # self.proj_qkv = nn.Linear(dim*k_size*k_size, dim*k_size*k_size * 3, bias=qkv_bias)
-        # self.attn_drop = nn.Dropout(attn_drop)
-        # self.proj_out = nn.Linear(dim*k_size*k_size, dim*k_size*k_size)
-        # self.proj_out_drop = nn.Dropout(proj_drop)
-        # self.softmax = nn.Softmax(dim=-1)
-
-        self.gk_generation = nn.Conv2d(in_channels=self.nW, out_channels=1, kernel_size=1, stride=1, padding=0)
-
-        # self.se = nn.Sequential(
-        #     nn.Conv2d(in_channels=dim, out_channels=dim//16, kernel_size=1, stride=1, padding=0),
-        #     nn.ReLU(),
-        #     nn.Conv2d(in_channels=dim//16, out_channels=dim, kernel_size=1, stride=1, padding=0),
-        #     nn.Sigmoid()
-        # )
-
-        self.convlayer = ConvLayer(dim, k_size, k_stride, k_padding, self.nW, if_global=True)
-        self.wink_reweight = WinKernel_Reweight(dim, win_num=self.nW)
-        self.fusion = nn.Conv2d((self.nW+1)*self.dim, self.dim, kernel_size=1, stride=1, padding=0, groups=self.dim)
+        self.num_layers = self.win_num
+        self.convlayer1 = ConvLayer(dim, kernel_size, stride, padding, win_num=ka_win_num, k_in=False)
+        self.wink_reweight = WinKernel_Reweight(dim, win_num=ka_win_num)
+        self.gk_generation = nn.Conv2d(self.win_num, 1, kernel_size=1, stride=1, padding=0)
+        self.convlayer2 = ConvLayer(dim, kernel_size, stride, padding, win_num=ka_win_num, k_in=True)
+        self.fusion = nn.Conv2d((self.win_num+1)*self.dim, self.dim, kernel_size=1, stride=1, padding=0, groups=self.dim)
 
 
     def forward(self, x):
-        '''
-        x: b, h*w, c
-        '''
-        B, L, C = x.shape
-        H, W = self.input_resolution
-        x = x.view(B, H, W, C)
+        """
+        x: B, C, H, W
+        """
+        B, C, H, W = x.shape
+        x = x.permute(0, 2, 3, 1).reshape(B, -1, C)
 
-        # x_windows: B*nW, window_size, window_size, C
-        x_windows = window_partition(x, self.window_size)
-        # x_windows: B*nW, C, window_size, window_size
-        x_windows = x_windows.permute(0, 3, 1, 2).contiguous()
+        # x:  bs, h'*w', c(后面用h, w表示h'和w')
+        x = pad_feature_map(x, window_size=self.window_size)
 
+        
 
-        ### 池化为分组卷积参数
-        # kernels: B*nW, C, k_size, k_size
-        kernels = self.pooling(x_windows)
-        # kernels: B, nW, C*k_size*k_size
-        kernels = kernels.reshape(B, self.nW, C*self.k_size*self.k_size)
+        # x_windows:  bs, win_num*c, wh, ww
+        x_windows = ka_window_partition(x, self.window_size)
 
-
-        # ### kernels进行自注意力计算
-        # # kernels_qkv:  3, B, num_heads, nW, k_size**2*C/num_heads
-        # kernels_qkv = self.proj_qkv(kernels).reshape(B, self.nW, 3, self.num_heads, self.dim*self.k_size**2//self.num_heads).permute(2, 0, 3, 1, 4)
-
-        # # kernel:  B, num_heads, nW, k_size**2*C/num_heads
-        # kernels_q, kernels_k, kernels_v = kernels_qkv[0], kernels_qkv[1], kernels_qkv[2]
-        # kernels_q = kernels_q * self.scale
-
-        # # attn: B, num_heads, nW, nW
-        # attn = (kernels_q @ kernels_k.transpose(-2, -1))
-        # attn = self.softmax(attn)
-        # attn = self.attn_drop(attn)
-
-        # # kernels:  B, nW, k_size**2*C
-        # kernels = (attn @ kernels_v).transpose(1, 2).reshape(B, self.nW, self.dim*self.k_size**2)
-
-        # # kernels:  B, nW, C*k_size**2
-        # kernels = self.proj_out(kernels)
+        # windows_conv1:  bs, win_num*c, wh, ww
+        # kernels:  win_num*c, 1, k_size, k_size
+        windows_conv1, kernels = self.convlayer1(x_windows)
 
 
-        # ### 对kernels进行SE
-        # kernels:  B*nW, C, k_size, k_size
-        # kernels = kernels.reshape(B, self.nW, self.kernel_size, self.kernel_size, self.dim).permute(0, 1, 4, 2, 3).reshape(B*self.nW, self.dim, self.kernel_size, self.kernel_size)
-
-        # # kernels:  bs*win_num, c, k_size, k_size
-        # kernels = self.se(kernels)
+        ### 给窗口卷积核赋权        A1win1 ... A4win4
+        # kernels:  bs*win_num*c, 1, k_size, k_size
+        kernels = self.wink_reweight(kernels, windows_conv1)
 
 
-        ### 生成全局卷积核
-        # x_windows:  B, nW*C, win_size, win_size
-        x_windows = x_windows.reshape(B, self.nW*C, self.window_size, self.window_size)
+        ### 生成全局卷积核global kernel
+        # kernels:  bs*c, win_num, k_size, k_size
+        kernels = kernels.reshape(B, self.win_num, self.dim, 1, self.kernel_size, self.kernel_size).transpose(1, 2).reshape(B*self.dim, self.win_num, self.kernel_size, self.kernel_size)
 
-        # kernels:  B*nW*C, 1, k_size, k_size
-        kernels = kernels.reshape(B*self.nW*C, 1, self.k_size, self.k_size).unsqueeze(1)
-
-        # kernels:  B*nW*C, 1, k_size, k_size
-        kernels = self.wink_reweight(kernels, x_windows)
-
-        # kernels:  B*C, nW, k_size, k_size
-        kernels = kernels.reshape(B, self.nW, self.dim, self.k_size, self.k_size).transpose(1, 2).reshape(B*self.dim, self.nW, self.k_size, self.k_size)
-
-        # global_kernel:  B*C, 1, k_size, k_size
+        # global_kernel:  bs*c, win_num, k_size, k_size
         global_kernel = self.gk_generation(kernels)
 
-        # global_kernel:  B, 1, C, 1, k_size, k_size
-        global_kernel = global_kernel.reshape(B, self.dim, 1, self.k_size, self.k_size).unsqueeze(1)
-        
-        # kernels:  B, nW, C, 1, k_size, k_size
-        kernels = kernels.reshape(B, self.dim, self.nW, 1, self.k_size, self.k_size).transpose(1, 2)
+        # global_kernel:  bs, 1, c, 1, k_size, k_size
+        global_kernel = global_kernel.reshape(B, self.dim, 1, self.kernel_size, self.kernel_size).unsqueeze(1)
 
-        # kernels:  B, nW+1, C, 1, k_size, k_size
+        # kernels:  bs, win_num, c, 1, k_size, k_size
+        kernels = kernels.reshape(B, self.dim, self.win_num, 1, self.kernel_size, self.kernel_size).transpose(1, 2)
+
+        # kernels:  bs, win_num+1, c, 1, k_size, k_size
         kernels = torch.cat([kernels, global_kernel], dim=1)
 
-        # kernels:  B*(nW+1)*C, 1, k_size, k_size
-        kernels = kernels.reshape(-1, 1, self.k_size, self.k_size)
+        # kernels:  bs*(win_num+1)*c, 1, k_size, k_size
+        kernels = kernels.reshape(-1, 1, self.kernel_size, self.kernel_size)
 
 
         ### 卷积核与输入特征计算卷积
-        # x:  B, C, H, W
+        # x:  bs, c, h, w
         x = x.reshape(B, H, W, C).permute(0, 3, 1, 2)
 
-        # x:  B, (nW+1)*C, H, W
-        x = x.repeat(1, self.nW+1, 1, 1)
+        # x:  bs, (win_num+1)*c, h, w
+        x = x.repeat(1, self.win_num+1, 1, 1)
 
-        # x:  1, B*(nW+1)*C, H, W
-        x = x.reshape(1, B*(self.nW+1)*C, H, W)
+        # x:  1, bs*(win_num+1)*c, h, w
+        x = x.reshape(1, B*(self.win_num+1)*C, H, W)
 
-        # x:  1, B*(nW+1)*C, H, W
-        x = self.convlayer(x, kernels, B)
-
-        # x:  bs, (nW+1)*c, h, w
-        x = x.reshape(B, (self.nW+1), C, H, W).transpose(1, 2).reshape(B, (self.nW+1)*C, H, W)
+        # x:  1, bs*(win_num+1)*c, h, w
+        x, _ = self.convlayer2(x, kernels, groups=B*(self.win_num+1)*self.dim)
+        
+        # x:  bs, (win_num+1)*c, h, w
+        x = x.reshape(B, (self.win_num+1), C, H, W).transpose(1, 2).reshape(B, (self.win_num+1)*C, H, W)
 
         # x:  bs, c, h, w
         x = self.fusion(x)
 
-        # x:  B, H*W, C
-        x = x.permute(0, 2, 3, 1).reshape(B, L, C)
+        # # x:  bs, h*w, c
+        # x = x.permute(0, 2, 3, 1).reshape(B, H*W, C)
 
         return x
 
@@ -409,7 +456,7 @@ class SwinTransformerBlock(nn.Module):
 
         self.norm1 = norm_layer(dim)
         self.attn = WindowAttention(
-            dim, window_size=to_2tuple(self.window_size), num_heads=num_heads,
+            dim, input_resolution=input_resolution, window_size=to_2tuple(self.window_size), shift_size=shift_size, num_heads=num_heads,
             qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=drop)
 
         self.drop_path = DropPath(drop_path) if drop_path > 0. else nn.Identity()
@@ -443,10 +490,6 @@ class SwinTransformerBlock(nn.Module):
         self.attn_mask = attn_mask
         # self.register_buffer("attn_mask", attn_mask)
 
-        if self.shift_size == 0:
-            self.window_inter_attn = WindowInterAttention(input_resolution, dim=dim, ka_win_num=16, k_size=3, k_stride=1, k_padding=1, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop)
-
-
     def forward(self, x):
         H, W = self.input_resolution
         B, L, C = x.shape
@@ -467,7 +510,7 @@ class SwinTransformerBlock(nn.Module):
         x_windows = x_windows.view(-1, self.window_size * self.window_size, C)  # nW*B, window_size*window_size, C
 
         # W-MSA/SW-MSA
-        attn_windows = self.attn(x_windows, mask=self.attn_mask)  # nW*B, window_size*window_size, C
+        attn_windows = self.attn(x, x_windows, mask=self.attn_mask)  # nW*B, window_size*window_size, C
 
         # merge windows
         attn_windows = attn_windows.view(-1, self.window_size, self.window_size, C)
@@ -479,9 +522,6 @@ class SwinTransformerBlock(nn.Module):
         else:
             x = shifted_x
         x = x.view(B, H * W, C)
-
-        if self.shift_size == 0:
-            x = self.window_inter_attn(x)
 
         # FFN
         x = shortcut + self.drop_path(x)
@@ -604,17 +644,12 @@ class BasicLayer(nn.Module):
         else:
             self.downsample = None
 
-        # self.window_inter_attn = WindowInterAttention(input_resolution, dim=dim, ka_win_num=16, window_size=window_size, k_size=3, k_stride=1, k_padding=1, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop)
-
-
     def forward(self, x):
         for blk in self.blocks:
             if self.use_checkpoint:
                 x = checkpoint.checkpoint(blk, x)
             else:
                 x = blk(x)
-
-        # x = self.window_inter_attn(x)
 
         if self.downsample is not None:
             x = self.downsample(x)
