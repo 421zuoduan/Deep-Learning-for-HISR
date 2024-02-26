@@ -160,22 +160,24 @@ def pad_feature_map(input, window_size=8):
 
 
 class WinKernel_Reweight(nn.Module):
-    def __init__(self, dim, win_num=4):
+    def __init__(self, dim, win_num=16, s_rate=0.5):
         super().__init__()
         
         self.dim = dim
         self.win_num = win_num
+        self.s_rate = s_rate
         self.pooling = nn.AdaptiveAvgPool2d((1, 1))
         self.downchannel = nn.Conv2d(win_num*dim, win_num, kernel_size=1, groups=win_num)
         self.linear1 = nn.Conv2d(win_num, win_num*4, kernel_size=1)
         self.gelu = nn.GELU()
         self.linear2 = nn.Conv2d(win_num*4, win_num, kernel_size=1)
+        self.softmax = nn.Softmax(dim=1)
         self.sigmoid = nn.Sigmoid()
 
-    def forward(self, kernels, windows):
+    def forward(self, windows):
         """
         kernels:  bs*win_num*c, 1, k ,k
-        windows:  bs, win_num*c, wh, ww
+        selected_win_weight:  bs, s_rate*win_num
         """
 
         B = windows.shape[0]
@@ -183,7 +185,7 @@ class WinKernel_Reweight(nn.Module):
         # win_weight:  bs, win_num*c, 1, 1
         win_weight = self.pooling(windows)
 
-        # win_weight:  bs, win_num, 1, 1
+        # win_weight:  bs, nW, 1, 1
         win_weight = self.downchannel(win_weight)
 
         win_weight = self.linear1(win_weight)
@@ -191,19 +193,32 @@ class WinKernel_Reweight(nn.Module):
         win_weight = self.gelu(win_weight)
         win_weight = win_weight.transpose(1, 2).reshape(B, -1, 1, 1)
         win_weight = self.linear2(win_weight)
-        # weight:  bs, win_num, 1, 1, 1, 1
-        weight = self.sigmoid(win_weight).unsqueeze(-1).unsqueeze(-1)
 
-        # kernels:  bs, win_num, c, 1, k, k
-        kernels = kernels.reshape(B, self.win_num, self.dim, 1, kernels.shape[-2], kernels.shape[-1])
+        win_weight = self.softmax(win_weight)
 
-        # kernels:  bs, win_num, c, 1, k, k
-        kernels = weight * kernels
+        # win_weight:  bs, win_num
+        win_weight = win_weight.view(B, -1)
+        num_to_keep = int(win_weight.size(1) * self.s_rate)
+        _, top_indices = torch.topk(win_weight, num_to_keep, dim=1)
+        # selected_win_weight = torch.index_select(win_weight, 1, top_indices.flatten())
+        selected_win_weight = win_weight.gather(1, top_indices.expand(B, -1))
 
-        # kernels:  bs*win_num*c, 1, k, k
-        kernels = kernels.reshape(-1, 1, kernels.shape[-2], kernels.shape[-1])
+        selected_win_weight = self.sigmoid(selected_win_weight)
 
-        return kernels
+        return selected_win_weight, top_indices
+        # win_weight:  bs, win_num, 1, 1, 1, 1
+        # win_weight = self.sigmoid(win_weight).unsqueeze(-1).unsqueeze(-1)
+
+        # # kernels:  bs, win_num, c, 1, k, k
+        # kernels = kernels.reshape(B, self.win_num, self.dim, 1, kernels.shape[-2], kernels.shape[-1])
+
+        # # kernels:  bs, win_num, c, 1, k, k
+        # kernels = win_weight * kernels
+
+        # # kernels:  bs*win_num*c, 1, k, k
+        # kernels = kernels.reshape(-1, 1, kernels.shape[-2], kernels.shape[-1])
+
+        # return kernels
 
 
 class ConvLayer(nn.Module):
@@ -232,7 +247,7 @@ class ConvLayer(nn.Module):
 
 class WindowInterAttention(nn.Module):
 
-    def __init__(self, input_resolution, dim, ka_win_num, k_size, k_stride, k_padding, num_heads, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.):
+    def __init__(self, input_resolution, dim, ka_win_num, k_size, k_stride, k_padding, num_heads, s_rate=0.5, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.):
         super().__init__()
         self.input_resolution = input_resolution
         self.dim = dim
@@ -253,7 +268,8 @@ class WindowInterAttention(nn.Module):
         # self.proj_out_drop = nn.Dropout(proj_drop)
         # self.softmax = nn.Softmax(dim=-1)
 
-        self.gk_generation = nn.Conv2d(in_channels=self.nW, out_channels=1, kernel_size=1, stride=1, padding=0)
+        self.s_num = int(s_rate*self.nW)
+        self.gk_generation = nn.Conv2d(in_channels=self.s_num, out_channels=1, kernel_size=1, stride=1, padding=0)
 
         # self.se = nn.Sequential(
         #     nn.Conv2d(in_channels=dim, out_channels=dim//16, kernel_size=1, stride=1, padding=0),
@@ -263,7 +279,7 @@ class WindowInterAttention(nn.Module):
         # )
 
         self.convlayer = ConvLayer(dim, k_size, k_stride, k_padding, self.nW, if_global=True)
-        self.wink_reweight = WinKernel_Reweight(dim, win_num=self.nW)
+        self.wink_reweight = WinKernel_Reweight(dim, win_num=self.nW, s_rate=s_rate)
         self.fusion = nn.Conv2d((self.nW+1)*self.dim, self.dim, kernel_size=1, stride=1, padding=0)
 
 
@@ -320,23 +336,36 @@ class WindowInterAttention(nn.Module):
         # x_windows:  B, nW*C, win_size, win_size
         x_windows = x_windows.reshape(B, self.nW*C, self.window_size, self.window_size)
 
-        # kernels:  B*nW*C, 1, k_size, k_size
-        kernels = kernels.reshape(B*self.nW*C, 1, self.k_size, self.k_size).unsqueeze(1)
+        # kernels:  B, nW, C, k_size, k_size
+        kernels = kernels.reshape(B, self.nW, C, self.k_size, self.k_size)#.transpose(1, 2).reshape(B, C, self.nW, self.k_size, self.k_size)
+        # weight: B, s_rate*nW
+        # top_indices: B, s_rate*nW
+        # kernels:  B, nW, C, k_size, k_size
+        weight, top_indices = self.wink_reweight(x_windows)
+        # kernels = torch.index_select(kernels, 1, top_indices)
 
-        # kernels:  B*nW*C, 1, k_size, k_size
-        kernels = self.wink_reweight(kernels, x_windows)
+        # 扩展top_indices使其形状与kernels相匹配
+        top_indices = top_indices.reshape(B, self.s_num, 1, 1, 1)
 
-        # kernels:  B*C, nW, k_size, k_size
-        kernels = kernels.reshape(B, self.nW, self.dim, self.k_size, self.k_size).transpose(1, 2).reshape(B*self.dim, self.nW, self.k_size, self.k_size)
+        # 使用广播机制，选择要保留的kernels
+        kernels_tmp = kernels.gather(1, top_indices.expand(-1, -1, kernels.size(2), kernels.size(3), kernels.size(4)))
+
+
+        kernels_tmp = kernels_tmp.reshape(B, self.s_num, self.dim, self.k_size, self.k_size)
+        weight = weight.reshape(B, self.s_num, 1, 1, 1)
+        kernels_tmp = kernels_tmp * weight
+
+        # kernels:  B*C, s_num, k_size, k_size
+        kernels_tmp = kernels_tmp.transpose(1, 2).reshape(B*self.dim, self.s_num, self.k_size, self.k_size)
 
         # global_kernel:  B*C, 1, k_size, k_size
-        global_kernel = self.gk_generation(kernels)
+        global_kernel = self.gk_generation(kernels_tmp)
 
         # global_kernel:  B, 1, C, 1, k_size, k_size
-        global_kernel = global_kernel.reshape(B, self.dim, 1, self.k_size, self.k_size).unsqueeze(1)
+        global_kernel = global_kernel.reshape(B, 1, self.dim, 1, self.k_size, self.k_size)
         
         # kernels:  B, nW, C, 1, k_size, k_size
-        kernels = kernels.reshape(B, self.dim, self.nW, 1, self.k_size, self.k_size).transpose(1, 2)
+        kernels = kernels.reshape(B, self.nW, self.dim, 1, self.k_size, self.k_size)
 
         # kernels:  B, nW+1, C, 1, k_size, k_size
         kernels = torch.cat([kernels, global_kernel], dim=1)

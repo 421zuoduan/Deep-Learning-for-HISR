@@ -253,7 +253,7 @@ class WindowInterAttention(nn.Module):
         # self.proj_out_drop = nn.Dropout(proj_drop)
         # self.softmax = nn.Softmax(dim=-1)
 
-        self.gk_generation = nn.Conv2d(in_channels=self.nW, out_channels=1, kernel_size=1, stride=1, padding=0)
+        self.gk_generation = nn.Conv2d(in_channels=self.nW*dim, out_channels=dim, kernel_size=1, stride=1, padding=0)
 
         # self.se = nn.Sequential(
         #     nn.Conv2d(in_channels=dim, out_channels=dim//16, kernel_size=1, stride=1, padding=0),
@@ -321,19 +321,19 @@ class WindowInterAttention(nn.Module):
         x_windows = x_windows.reshape(B, self.nW*C, self.window_size, self.window_size)
 
         # kernels:  B*nW*C, 1, k_size, k_size
-        kernels = kernels.reshape(B*self.nW*C, 1, self.k_size, self.k_size).unsqueeze(1)
+        kernels = kernels.reshape(B*self.nW*C, 1, self.k_size, self.k_size)
 
         # kernels:  B*nW*C, 1, k_size, k_size
         kernels = self.wink_reweight(kernels, x_windows)
 
-        # kernels:  B*C, nW, k_size, k_size
-        kernels = kernels.reshape(B, self.nW, self.dim, self.k_size, self.k_size).transpose(1, 2).reshape(B*self.dim, self.nW, self.k_size, self.k_size)
+        # kernels:  B, nW*C, k_size, k_size
+        kernels = kernels.reshape(B, self.nW*self.dim, self.k_size, self.k_size)
 
-        # global_kernel:  B*C, 1, k_size, k_size
+        # global_kernel:  B, C, k_size, k_size
         global_kernel = self.gk_generation(kernels)
 
         # global_kernel:  B, 1, C, 1, k_size, k_size
-        global_kernel = global_kernel.reshape(B, self.dim, 1, self.k_size, self.k_size).unsqueeze(1)
+        global_kernel = global_kernel.reshape(B, 1, self.dim, 1, self.k_size, self.k_size)
         
         # kernels:  B, nW, C, 1, k_size, k_size
         kernels = kernels.reshape(B, self.dim, self.nW, 1, self.k_size, self.k_size).transpose(1, 2)
