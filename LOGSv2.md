@@ -60,6 +60,8 @@ Swin_qkvv2: head 8, win_size 8, 窗口大小不变, baseline基础上, 加入Swi
 
 Swin_qkvv3: head 8, win_size 8, 窗口大小不变, v3基础上, 计入GELU
 
+Swin_qkvv4: head 8, win_size 8, 窗口大小不变, v2基础上, 直接替换原有分组卷积
+
 
 
 |模型|head|win_size|窗口变小?|epoch|SAM|ERGAS|PSNR|参数量|训练位置|时间|

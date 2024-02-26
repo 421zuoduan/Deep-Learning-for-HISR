@@ -95,7 +95,7 @@ class WindowAttention(nn.Module):
         if shift_size > 0:
             self.qkv_dwconv = nn.Conv2d(dim * 3, dim * 3, kernel_size=3, stride=1, padding=1, groups=dim * 3)
         else:
-            self.qkv_dwconv_local = nn.Conv2d(dim * 3, dim * 3, kernel_size=3, stride=1, padding=1, groups=dim * 3)
+            # self.qkv_dwconv_local = nn.Conv2d(dim * 3, dim * 3, kernel_size=3, stride=1, padding=1, groups=dim * 3)
             self.q_dwconv_global = WindowInteractionConv(input_resolution, dim, ka_win_num=16, k_size=3, k_stride=1, k_padding=1, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=proj_drop)
             self.k_dwconv_global = WindowInteractionConv(input_resolution, dim, ka_win_num=16, k_size=3, k_stride=1, k_padding=1, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=proj_drop)
             self.v_dwconv_global = WindowInteractionConv(input_resolution, dim, ka_win_num=16, k_size=3, k_stride=1, k_padding=1, num_heads=num_heads, qkv_bias=qkv_bias, qk_scale=qk_scale, attn_drop=attn_drop, proj_drop=proj_drop)
@@ -138,8 +138,8 @@ class WindowAttention(nn.Module):
             # B*nW, 3C, window_size, window_size
             qkv = window_partition(qkv, self.window_size).permute(0, 3, 1, 2)
 
-            # B*nW, 3C, window_size, window_size
-            qkv = self.qkv_dwconv_local(qkv)
+            # # B*nW, 3C, window_size, window_size
+            # qkv = self.qkv_dwconv_local(qkv)
 
             # q, k, v:  B*nW, C, window_size, window_size
             q, k, v = qkv.chunk(3, dim=1)
