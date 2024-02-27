@@ -22,6 +22,11 @@ Swin_poolv6: head 8, win_size 8, 窗口大小不变, v3基础上, 再加入一�
 
 Swin_poolv7: head 8, win_size 8, 窗口大小不变, 结合v5和v6, 只在第二层加入模块, 再加入一个池化的全局卷积核
 
+**Swin_poolv12**: head 8, win_size 8, 窗口大小不变, v7基础上, 仅在不shift的窗口上操作, 有池化全局卷积核, 只在第二层加入
+
+Swin_poolv16: head 8, win_size 8, 窗口大小不变, v12基础上, 改变模块加入的位置, 在attention前加
+
+
 Swin_poolv8: head 8, win_size 8, 窗口大小不变, v3基础上丢弃不重要的窗口再聚合成global kernel, **没写完**
 
 Swin_poolv9: head 8, win_size 8, 窗口大小不变, 与v3对比, 没有使用wink_reweight
@@ -30,17 +35,13 @@ Swin_poolv9: head 8, win_size 8, 窗口大小不变, 与v3对比, 没有使用wi
 
 Swin_poolv11: head 8, win_size 8, 窗口大小不变, v10基础上, 只在第二层加入
 
-Swin_poolv12: head 8, win_size 8, 窗口大小不变, v7基础上, 仅在不shift的窗口上操作, 有池化全局卷积核, 只在第二层加入
-
 Swin_poolv13: head 8, win_size 8, 窗口大小不变, v10基础上, 修改wink_reweight, 增加卷积核在通道和空间上共享的SE
 
-Swin_poolv14: head 8, win_size 8, 窗口大小不变, v10基础上, 64窗口
-
-Swin_poolv15: head 8, win_size 8, 窗口大小不变, v13基础上, 修改wink_reweight, 卷积核仅在通道上SE, 窗口池化前进行通道共享的SE
-
-Swin_poolv16: head 8, win_size 8, 窗口大小不变, v12基础上, 改变模块加入的位置, 在attention前加
+**Swin_poolv15**: head 8, win_size 8, 窗口大小不变, v13基础上, 修改wink_reweight, 卷积核仅在通道上SE, 窗口池化前进行通道共享的SE
 
 Swin_poolv17: head 8, win_size 8, 窗口大小不变, v13基础上, SE的mlp改为先降维再升维
+
+Swin_poolv14: head 8, win_size 8, 窗口大小不变, v10基础上, 64窗口
 
 Swin_poolv18: head 8, win_size 8, 窗口大小不变, v10基础上, 加入attn_map池化后的自注意力
 
@@ -50,12 +51,16 @@ Swin_poolv21: head 8, win_size 8, 窗口大小不变, v10基础上, fusion时丢
 
 Swin_poolv22: head 8, win_size 8, 窗口大小不变, v10基础上, 使用分组卷积聚合global kernel
 
+Swin_poolv23: head 8, win_size 8, 窗口大小不变, v22基础上, 增加一个池化的全局卷积核
+
+Swin_poolv24: head 8, win_size 8, 窗口大小不变, v23基础上, 结合v15改变win_reweight, 修改代码细节
 
 
 
 Swin_pool_baselinev3: head 8, win_size 8, 同一层窗口大小减少
 
 Swin_poolv20: head 8, win_size 8, 基于v10, 同一层窗口大小减少
+
 
 
 Swin_pool_baselinev2: windowattention上, 将qkv生成方式改为dwconv
@@ -92,19 +97,20 @@ Swin_qkvv4: head 8, win_size 8, 窗口大小不变, v2基础上, 直接替换原
 |Swin_poolv17|8|8|×|2000|2.0884990|1.1169446|51.3982006|0.586M|6号机 UDLv2|20240223|
 |Swin_poolv18|8|8|×|2000|2.1567486|1.1810000|51.0778535|2.080M|6号机 UDL|20240224|
 |Swin_poolv19|8|8|×|2000|2.0977861|1.1031732|51.4121708|0.430M|6号机 UDLv2|20240224|
+|Swin_poolv21|8|8|×|2000|2.1703069|1.1648251|50.9806678|0.584M|2号机 UDLv2|20240224|
 
-|Swin_poolv22_groupconv|8|8|×|2000||||0.732M|2号机 UDL|20240227|
-|Swin_poolv22_normalconv|8|8|×|2000||||0.587M|6号机 UDL|20240227|
-|Swin_poolv22_normalconv|8|8|×|2000||||0.433M|2号机 UDLv2|20240227|
+
+
+|Swin_poolv22_normalconv|8|8|×|2000|2.1610719|1.1718743|51.1293605|0.732M|6号机 UDL|20240227|
+|Swin_poolv22_groupconv|8|8|×|2000|2.1052242|1.1123530|51.4093260|0.587M|2号机 UDL|20240227|
+|Swin_poolv22_groupconvfusion|8|8|×|2000|2.0980517|1.0974184|51.5346839|0.433M|6号机 UDL|20240227|
 
 |Swin_pool_baselinev2|8|8|×|2000|2.1143289|1.1144895|51.3939195|0.428M|2号机 UDL|20240224|
 |Swin_qkvv2|8|8|×|2000|2.2355720|1.2335357|50.6819552|0.926M|2号机 UDL|20240224|
 |Swin_qkvv3|8|8|×|2000|2.2309780|1.2588267|50.6825704|0.926M|2号机 UDL|20240224|
-|Swin_qkvv4|8|8|×|2000||||0.921M|6号机 UDLv2|20240226|
+|Swin_qkvv4|8|8|×|2000|2.2133673|1.2244732|50.7088162|0.921M|6号机 UDLv2|20240226|
 |Swin_pool_baselinev3|8|8|×|2000|2.0955985|1.0871105|51.4333194|0.418M|2号机 UDL|20240226|
 |Swin_poolv20|8|8|×|2000|2.1272049|1.1356858|51.2372097|0.657M|6号机 UDL|20240226|
-
-
 
 ## 万一有用呢
 
