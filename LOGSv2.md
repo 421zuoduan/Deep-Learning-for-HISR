@@ -6,6 +6,8 @@
 串行结构
 
 
+### 基础实验(wink_reweight, global_kernel, 全加还是仅第二层加, shift时加不加)
+
 Swin_pool_baseline: 0.418M
 
 Swin_poolv1: head 8, win_size 8, 窗口大小不变, 使用selfattention
@@ -26,6 +28,10 @@ Swin_poolv7: head 8, win_size 8, 窗口大小不变, 结合v5和v6, 只在第二
 
 Swin_poolv16: head 8, win_size 8, 窗口大小不变, v12基础上, 改变模块加入的位置, 在attention前加
 
+Swin_poolv27: head 8, win_size 8, 窗口大小不变, v10基础上, 去掉聚合的global kernel, 仅使用池化的global kernel
+
+
+### 基于Swin_poolv10的实验
 
 Swin_poolv8: head 8, win_size 8, 窗口大小不变, v3基础上丢弃不重要的窗口再聚合成global kernel, **没写完**
 
@@ -49,19 +55,30 @@ Swin_poolv19: head 8, win_size 8, 窗口大小不变, v10基础上, fusion改成
 
 Swin_poolv21: head 8, win_size 8, 窗口大小不变, v10基础上, fusion时丢弃softmax后权重低的窗口卷积核
 
+
+### 分组卷积聚合信息
+
 Swin_poolv22: head 8, win_size 8, 窗口大小不变, v10基础上, 使用分组卷积聚合global kernel
 
 Swin_poolv23: head 8, win_size 8, 窗口大小不变, v22基础上, 增加一个池化的全局卷积核
 
 Swin_poolv24: head 8, win_size 8, 窗口大小不变, v23基础上, 结合v15改变win_reweight, 修改代码细节
 
+Swin_poolv24_nopoolgk: head 8, win_size 8, 窗口大小不变, v22基础上, 结合v15改变win_reweight, 修改代码细节, 没有使用池化全局卷积核
 
+Swin_poolv25: head 8, win_size 8, 窗口大小不变, v22groupconvfusion基础上, 变成双分支结构, 每个分支均为C, 使用分组卷积聚合两张feature map
+
+Swin_poolv26: head 8, win_size 8, 窗口大小不变, v25基础上, 将分组卷积聚合改成普通卷积
+
+
+### 减小窗口大小
 
 Swin_pool_baselinev3: head 8, win_size 8, 同一层窗口大小减少
 
 Swin_poolv20: head 8, win_size 8, 基于v10, 同一层窗口大小减少
 
 
+### 卷积生成qkv的改进
 
 Swin_pool_baselinev2: windowattention上, 将qkv生成方式改为dwconv
 
@@ -94,6 +111,7 @@ Swin_qkvv4: head 8, win_size 8, 窗口大小不变, v2基础上, 直接替换原
 |Swin_poolv14|8|8|×|2000|2.1152405|1.1676570|51.1290873|1.127M|2号机 UDL|20240223|
 |Swin_poolv15|8|8|×|2000|2.1842559|1.1034097|51.4900409|0.640M|6号机 UDL|20240223|
 |Swin_poolv16|8|8|×|2000|2.0916659|1.1376898|51.3469478|0.572M|2号机 UDL|20240223|
+|Swin_poolv27|8|8|×|2000||||0.575M|2号机 UDLv3|20240227|
 |Swin_poolv17|8|8|×|2000|2.0884990|1.1169446|51.3982006|0.586M|6号机 UDLv2|20240223|
 |Swin_poolv18|8|8|×|2000|2.1567486|1.1810000|51.0778535|2.080M|6号机 UDL|20240224|
 |Swin_poolv19|8|8|×|2000|2.0977861|1.1031732|51.4121708|0.430M|6号机 UDLv2|20240224|
@@ -104,6 +122,12 @@ Swin_qkvv4: head 8, win_size 8, 窗口大小不变, v2基础上, 直接替换原
 |Swin_poolv22_normalconv|8|8|×|2000|2.1610719|1.1718743|51.1293605|0.732M|6号机 UDL|20240227|
 |Swin_poolv22_groupconv|8|8|×|2000|2.1052242|1.1123530|51.4093260|0.587M|2号机 UDL|20240227|
 |Swin_poolv22_groupconvfusion|8|8|×|2000|2.0980517|1.0974184|51.5346839|0.433M|6号机 UDL|20240227|
+|Swin_poolv23|8|8|×|2000|2.0731021|1.1599144|51.3773082|0.433M|6号机 UDL|20240227|
+|Swin_poolv24|8|8|×|2000||||0.508M|2号机 UDL|20240227|
+|Swin_poolv24|8|8|×|2000||||0.507M|6号机 UDL|20240227|
+|Swin_poolv25|8|8|×|2000||||0.433M|2号机 UDLv2|20240227|
+|Swin_poolv25|8|8|×|2000||||0.451M|2号机 UDLv2|20240227|
+
 
 |Swin_pool_baselinev2|8|8|×|2000|2.1143289|1.1144895|51.3939195|0.428M|2号机 UDL|20240224|
 |Swin_qkvv2|8|8|×|2000|2.2355720|1.2335357|50.6819552|0.926M|2号机 UDL|20240224|
