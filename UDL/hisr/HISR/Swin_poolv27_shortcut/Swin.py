@@ -520,7 +520,8 @@ class SwinTransformerBlock(nn.Module):
         x = x.view(B, H * W, C)
 
         if self.shift_size == 0:
-            x = self.window_inter_attn(x)
+            x_shortcut = x
+            x = x_shortcut + self.window_inter_attn(x)
 
         # FFN
         x = shortcut + self.drop_path(x)

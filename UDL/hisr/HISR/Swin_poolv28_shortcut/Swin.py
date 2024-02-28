@@ -230,51 +230,6 @@ class ConvLayer(nn.Module):
         return x
 
 
-class Fusion(nn.Module):
-    def __init__(self, dim, n, act_layer=nn.GELU):
-        """ Constructor
-        Args:
-            dim: input channel dimensionality.
-            M: the number of branchs.
-            r: the ratio for compute d, the length of z.
-            stride: stride, default 1.
-            L: the minimum dim of the vector z in paper, default 32.
-        """
-        super().__init__()
-        self.dim = dim
-        self.n = n
-        self.proj = nn.Conv2d(n*dim, n*dim, kernel_size=1, stride=1, padding=0, groups=dim)
-
-        self.act_layer = act_layer()
-        self.gap = nn.AdaptiveAvgPool2d((1, 1))
-        self.fc1 = nn.Linear(n * dim, dim)
-        self.fc2 = nn.Linear(dim, self.n*self.dim)
-        self.softmax = nn.Softmax(dim=1)
-        self.proj_out = nn.Conv2d(dim, dim, kernel_size=1, stride=1, padding=0)
-
-    def forward(self, input_feats, global_feature):
-        '''
-        input_feats:  B, n*dim, H, W
-        global_feature:  B, dim, H, W
-        '''
-        B, _, H, W = input_feats.shape
-        input_groups = input_feats.reshape(B, self.n, self.dim, H, W)
-        feats = self.proj(input_feats) #[B, n*dim, H, W]
-
-        feats = self.act_layer(feats.permute(0, 2, 3, 1)).permute(0, 3, 1, 2) #[B, n*dim, H, W]
-        feats = self.gap(feats) #[B, n*dim, 1, 1]
-        feats = self.fc1(feats.squeeze()) #[B, dim]
-        feats = self.act_layer(feats) #[B, d]
-        attention_vectors = self.fc2(feats) #[B, n*dim]
-        attention_vectors = attention_vectors.view(B, self.n, self.dim, 1, 1)
-        attention_vectors = self.softmax(attention_vectors)
-
-        x_sum = torch.sum(input_groups * attention_vectors, dim=1) #[B, dim, H, W]
-        x_sum = self.proj_out(x_sum) #[B, dim, H, W]
-        output = global_feature + x_sum
-        return output
-
-
 class WindowInterAttention(nn.Module):
 
     def __init__(self, input_resolution, dim, ka_win_num, k_size, k_stride, k_padding, num_heads, qkv_bias=True, qk_scale=None, attn_drop=0., proj_drop=0.):
@@ -290,12 +245,27 @@ class WindowInterAttention(nn.Module):
         self.k_padding = k_padding
 
         self.pooling = nn.AdaptiveAvgPool2d((k_size, k_size))
-        self.gk_generation = nn.Conv2d(in_channels=self.nW*dim, out_channels=dim, kernel_size=1, stride=1, padding=0, groups=self.dim)
+
+        # self.scale = qk_scale or dim ** -0.5
+        # self.proj_qkv = nn.Linear(dim*k_size*k_size, dim*k_size*k_size * 3, bias=qkv_bias)
+        # self.attn_drop = nn.Dropout(attn_drop)
+        # self.proj_out = nn.Linear(dim*k_size*k_size, dim*k_size*k_size)
+        # self.proj_out_drop = nn.Dropout(proj_drop)
+        # self.softmax = nn.Softmax(dim=-1)
+
+        self.gk_generation = nn.Conv2d(in_channels=self.nW, out_channels=1, kernel_size=1, stride=1, padding=0)
+
+        self.se = nn.Sequential(
+            nn.Conv2d(in_channels=dim, out_channels=dim, kernel_size=1, stride=1, padding=0),
+            nn.GELU(),
+            nn.Conv2d(in_channels=dim, out_channels=dim, kernel_size=1, stride=1, padding=0),
+            nn.Sigmoid()
+        )
 
         self.convlayer = ConvLayer(dim, k_size, k_stride, k_padding, self.nW, if_global=True)
         self.wink_reweight = WinKernel_Reweight(dim, win_num=self.nW)
-        # self.fusion = nn.Conv2d((self.nW+1)*self.dim, self.dim, kernel_size=1, stride=1, padding=0, groups=self.dim)
-        self.fusion = Fusion(dim, n=self.nW+1)
+        self.fusion = nn.Conv2d((self.nW+1)*self.dim, self.dim, kernel_size=1, stride=1, padding=0)
+
 
     def forward(self, x):
         '''
@@ -338,12 +308,12 @@ class WindowInterAttention(nn.Module):
         # kernels = self.proj_out(kernels)
 
 
-        # ### 对kernels进行SE
+        ### 对kernels进行SE
         # kernels:  B*nW, C, k_size, k_size
-        # kernels = kernels.reshape(B, self.nW, self.kernel_size, self.kernel_size, self.dim).permute(0, 1, 4, 2, 3).reshape(B*self.nW, self.dim, self.kernel_size, self.kernel_size)
+        kernels = kernels.reshape(B*self.nW, self.dim, self.k_size, self.k_size)
 
-        # # kernels:  bs*win_num, c, k_size, k_size
-        # kernels = self.se(kernels)
+        # kernels:  B*nW, c, k_size, k_size
+        kernels = self.se(kernels)
 
 
         ### 生成全局卷积核
@@ -351,19 +321,19 @@ class WindowInterAttention(nn.Module):
         x_windows = x_windows.reshape(B, self.nW*C, self.window_size, self.window_size)
 
         # kernels:  B*nW*C, 1, k_size, k_size
-        kernels = kernels.reshape(B*self.nW*C, 1, self.k_size, self.k_size)
+        kernels = kernels.reshape(B*self.nW*C, 1, self.k_size, self.k_size).unsqueeze(1)
 
         # kernels:  B*nW*C, 1, k_size, k_size
         kernels = self.wink_reweight(kernels, x_windows)
 
-        # kernels:  B, nW*C, k_size, k_size
-        kernels = kernels.reshape(B, self.nW, self.dim, self.k_size, self.k_size).transpose(1, 2).reshape(B, self.dim*self.nW, self.k_size, self.k_size)
+        # kernels:  B*C, nW, k_size, k_size
+        kernels = kernels.reshape(B, self.nW, self.dim, self.k_size, self.k_size).transpose(1, 2).reshape(B*self.dim, self.nW, self.k_size, self.k_size)
 
-        # global_kernel:  B, C, k_size, k_size
+        # global_kernel:  B*C, 1, k_size, k_size
         global_kernel = self.gk_generation(kernels)
 
         # global_kernel:  B, 1, C, 1, k_size, k_size
-        global_kernel = global_kernel.reshape(B, 1, self.dim, 1, self.k_size, self.k_size)
+        global_kernel = global_kernel.reshape(B, self.dim, 1, self.k_size, self.k_size).unsqueeze(1)
         
         # kernels:  B, nW, C, 1, k_size, k_size
         kernels = kernels.reshape(B, self.dim, self.nW, 1, self.k_size, self.k_size).transpose(1, 2)
@@ -388,20 +358,11 @@ class WindowInterAttention(nn.Module):
         # x:  1, B*(nW+1)*C, H, W
         x = self.convlayer(x, kernels, B)
         
-        # # x:  B, (nW+1)*C, H, W
-        # x = x.reshape(B, (self.nW+1), C, H, W).transpose(1, 2).reshape(B, C*(self.nW+1), H, W)
-
-        # # x:  B, C, H, W
-        # x = self.fusion(x)
-
         # x:  B, (nW+1)*C, H, W
-        x = x.reshape(B, -1, H, W)
-
-        # global_feature:  B, C, H, W
-        global_feature = x[:, self.nW*C:, :, :]
+        x = x.reshape(B, (self.nW+1)*C, H, W)
 
         # x:  B, C, H, W
-        x = self.fusion(x, global_feature)
+        x = self.fusion(x)
 
         # x:  B, H*W, C
         x = x.permute(0, 2, 3, 1).reshape(B, L, C)
@@ -520,7 +481,8 @@ class SwinTransformerBlock(nn.Module):
         x = x.view(B, H * W, C)
 
         if self.shift_size == 0:
-            x = self.window_inter_attn(x)
+            x_shortcut = x
+            x = x_shortcut + self.window_inter_attn(x)
 
         # FFN
         x = shortcut + self.drop_path(x)
