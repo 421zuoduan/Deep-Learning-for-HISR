@@ -86,12 +86,18 @@ from UDL.Basis.auxiliary import set_random_seed
 # from UDL.hisr.HISR.Swin_poolv22_groupconv.model_Swin import build
 # from UDL.hisr.HISR.Swin_poolv22_groupconvfusion.option_hisr_Swin import cfg as args
 # from UDL.hisr.HISR.Swin_poolv22_groupconvfusion.model_Swin import build
+# from UDL.hisr.HISR.Swin_poolv22_groupconvfusion_beforeattn.option_hisr_Swin import cfg as args
+# from UDL.hisr.HISR.Swin_poolv22_groupconvfusion_beforeattn.model_Swin import build
+# from UDL.hisr.HISR.Swin_poolv22_groupconvfusion_shortcut.option_hisr_Swin import cfg as args
+# from UDL.hisr.HISR.Swin_poolv22_groupconvfusion_shortcut.model_Swin import build
+from UDL.hisr.HISR.Swin_poolv22_groupconvfusion_shortcutnorm.option_hisr_Swin import cfg as args
+from UDL.hisr.HISR.Swin_poolv22_groupconvfusion_shortcutnorm.model_Swin import build
 # from UDL.hisr.HISR.Swin_poolv23.option_hisr_Swin import cfg as args
 # from UDL.hisr.HISR.Swin_poolv23.model_Swin import build
 # from UDL.hisr.HISR.Swin_poolv24.option_hisr_Swin import cfg as args
 # from UDL.hisr.HISR.Swin_poolv24.model_Swin import build
-from UDL.hisr.HISR.Swin_poolv24_nopoolgk.option_hisr_Swin import cfg as args
-from UDL.hisr.HISR.Swin_poolv24_nopoolgk.model_Swin import build
+# from UDL.hisr.HISR.Swin_poolv24_nopoolgk.option_hisr_Swin import cfg as args
+# from UDL.hisr.HISR.Swin_poolv24_nopoolgk.model_Swin import build
 # from UDL.hisr.HISR.Swin_poolv25.option_hisr_Swin import cfg as args
 # from UDL.hisr.HISR.Swin_poolv25.model_Swin import build
 # from UDL.hisr.HISR.Swin_poolv26.option_hisr_Swin import cfg as args
