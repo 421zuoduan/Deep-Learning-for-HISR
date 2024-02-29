@@ -55,6 +55,10 @@ Swin_poolv19: head 8, win_size 8, 窗口大小不变, v10基础上, fusion改成
 
 Swin_poolv21: head 8, win_size 8, 窗口大小不变, v10基础上, fusion时丢弃softmax后权重低的窗口卷积核
 
+Swin_poolv28: head 8, win_size 8, 窗口大小不变, v10基础上, 加入kernels的se
+
+Swin_poolv29: head 8, win_size 8, 窗口大小不变, pool生成全局卷积核, fusion生成全局卷积核(nW*c->c, groupconv实现), SK生成全局卷积核, 三个全局卷积核和原图卷积, feature map经fusion成一张图片
+
 
 ### 分组卷积聚合信息
 
@@ -71,6 +75,8 @@ Swin_poolv25: head 8, win_size 8, 窗口大小不变, v22groupconvfusion基础�
 Swin_poolv26: head 8, win_size 8, 窗口大小不变, v25基础上, 将分组卷积聚合改成普通卷积
 
 Swin_poolv27: head 8, win_size 8, 窗口大小不变, v22groupconvfusion基础上, fusion改为SKConv, 无shortcut
+
+
 
 
 ### 减小窗口大小
@@ -119,8 +125,11 @@ Swin_qkvv4: head 8, win_size 8, 窗口大小不变, v2基础上, 直接替换原
 |Swin_poolv18|8|8|×|2000|2.1567486|1.1810000|51.0778535|2.080M|6号机 UDL|20240224|
 |Swin_poolv19|8|8|×|2000|2.0977861|1.1031732|51.4121708|0.430M|6号机 UDLv2|20240224|
 |Swin_poolv21|8|8|×|2000|2.1703069|1.1648251|50.9806678|0.584M|2号机 UDLv2|20240224|
-|Swin_poolv28|8|8|×|2000||||0.603M|6号机 UDLv2|20240229|
-|Swin_poolv28_shortcut|8|8|×|2000||||0.603M|6号机 UDL|20240229|
+|**Swin_poolv28**|8|8|×|2000|2.0405216|1.0981678|51.6509944|0.603M|6号机 UDLv2|20240229|
+|Swin_poolv28_shortcut|8|8|×|2000|2.0609085|1.1115838|51.4158225|0.603M|6号机 UDL|20240229|
+|Swin_poolv29|8|8|×|2000||||0.827M|2号机 UDL|20240229|
+|Swin_poolv29_nopoolgk|8|8|×|2000||||0.818M|2号机 UDLv2|20240229|
+|Swin_poolv29_groupfusion|8|8|×|2000||||0.800M|6号机 UDL|20240229|
 
 
 |Swin_poolv22_normalconv|8|8|×|2000|2.1610719|1.1718743|51.1293605|0.732M|6号机 UDL|20240227|
@@ -135,8 +144,8 @@ Swin_qkvv4: head 8, win_size 8, 窗口大小不变, v2基础上, 直接替换原
 |Swin_poolv24_nopoolgk_shortcut|8|8|×|2000|2.0609085|1.1115838|51.4158225|0.507M|6号机 UDL|20240228|
 |Swin_poolv25|8|8|×|2000|2.0913795|1.1427165|51.3672371|0.433M|2号机 UDLv2|20240227|
 |Swin_poolv26|8|8|×|2000|2.0816495|1.1584849|51.2520485|0.451M|6号机 UDLv2|20240227|
-|Swin_poolv27|8|8|×|2000||||0.805M|2号机 UDL|20240229|
-|Swin_poolv27_shortcut|8|8|×|2000||||0.805M|2号机 UDLv2|20240229|
+|Swin_poolv27|8|8|×|2000|2.0602521|1.1479832|51.4104236|0.805M|2号机 UDL|20240229|
+|Swin_poolv27_shortcut|8|8|×|2000|2.0648098|1.0962912|51.5921260|0.805M|2号机 UDLv2|20240229|
 
 
 
