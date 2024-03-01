@@ -118,8 +118,12 @@ from UDL.Basis.auxiliary import set_random_seed
 # from UDL.hisr.HISR.Swin_poolv29_groupfusion.model_Swin import build
 # from UDL.hisr.HISR.Swin_poolv29_winkfusion.option_hisr_Swin import cfg as args
 # from UDL.hisr.HISR.Swin_poolv29_winkfusion.model_Swin import build
-from UDL.hisr.HISR.Swin_poolv29_nopoolsumgk.option_hisr_Swin import cfg as args
-from UDL.hisr.HISR.Swin_poolv29_nopoolsumgk.model_Swin import build
+# from UDL.hisr.HISR.Swin_poolv29_nopoolsumgk.option_hisr_Swin import cfg as args
+# from UDL.hisr.HISR.Swin_poolv29_nopoolsumgk.model_Swin import build
+# from UDL.hisr.HISR.Swin_poolv30.option_hisr_Swin import cfg as args
+# from UDL.hisr.HISR.Swin_poolv30.model_Swin import build
+from UDL.hisr.HISR.Swin_poolv30_shortcut.option_hisr_Swin import cfg as args
+from UDL.hisr.HISR.Swin_poolv30_shortcut.model_Swin import build
 
 # from UDL.hisr.HISR.Swin_pool_baselinev3.option_hisr_Swin import cfg as args
 # from UDL.hisr.HISR.Swin_pool_baselinev3.model_Swin import build
